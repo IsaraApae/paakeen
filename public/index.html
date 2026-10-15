@@ -55,17 +55,6 @@ body {
   font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", Thonburi, system-ui, sans-serif;
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
-/* scroll edges: content blurs softly as it passes under the status bar and the menu bar. A progressive blur from
-   unmasked layers (LINE's iPhone browser drops a backdrop blur that has a mask), each shorter and stronger toward the
-   edge. Each edge is its own compositing layer (translateZ) so it is drawn above the cards and charts, which that browser
-   otherwise painted on top of it. */
-.edge { position: fixed; left: 0; right: 0; z-index: 2; pointer-events: none; transform: translateZ(0); }
-.edge.top { top: 0; height: max(calc(env(safe-area-inset-top) + 20px), 52px); }  /* LINE may report no inset while drawing under the status bar; 52px stays above the page title */
-.edge.bottom { bottom: 0; height: calc(env(safe-area-inset-bottom) + 84px); }
-.edge i { position: absolute; left: 0; right: 0; -webkit-backdrop-filter: blur(var(--b)); backdrop-filter: blur(var(--b)); }
-.edge.top i { top: 0; } .edge.bottom i { bottom: 0; }
-.edge i:nth-child(1) { height: 100%; --b: 1px; } .edge i:nth-child(2) { height: 72%; --b: 2.5px; }
-.edge i:nth-child(3) { height: 48%; --b: 5px; } .edge i:nth-child(4) { height: 26%; --b: 10px; }
 #bg { position: fixed; inset: 0; z-index: -1; background: var(--wash), var(--bg); }
 main { max-width: 560px; margin: 0 auto; padding: calc(56px + env(safe-area-inset-top)) 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 h1 { margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700; }
@@ -255,8 +244,6 @@ dialog .group { background: var(--surface); }
 </head>
 <body>
 <div id="bg"></div>
-<div class="edge top" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-<div class="edge bottom" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <main id="main"><p class="empty">กำลังโหลด…</p></main>
 <div class="dock">
 <button class="ib tint add" onclick="S && editEntry()" aria-label="เพิ่มรายการ"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
