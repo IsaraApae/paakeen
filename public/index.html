@@ -646,7 +646,9 @@ function render() {
 const go = t => { tab = t; ui.sel = null; ui.sort = false; render(); scrollTo(0, 0); };
 const U = o => { Object.assign(ui, o); render(); };
 const F = o => { Object.assign(ui.f, o); render(); };
-const setS = async o => { await api('PUT', 'settings', o); o.lang ? location.reload() : load(); };
+// a theme change reloads too: LINE reads the theme colour (the strips behind the clock and its bottom bar) only when
+// the page opens; applyTheme first stores the new theme so the reloaded page starts in it
+const setS = async o => { await api('PUT', 'settings', o); if (o.theme) applyTheme(o.theme); o.lang || o.theme ? location.reload() : load(); };
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { topTint(); S && render(); });  // charts read their colours from CSS
 
 // ---------- actions ----------
