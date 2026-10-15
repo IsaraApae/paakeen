@@ -56,9 +56,14 @@ body {
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
 /* scroll-edge fades, so content softens as it passes under the floating glass */
-body::before, body::after { content: ""; position: fixed; left: 0; right: 0; z-index: 2; pointer-events: none; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-body::before { top: 0; height: calc(64px + env(safe-area-inset-top)); -webkit-mask-image: linear-gradient(#000 30%, transparent); mask-image: linear-gradient(#000 30%, transparent); }
-body::after { bottom: 0; height: calc(104px + env(safe-area-inset-bottom)); -webkit-mask-image: linear-gradient(transparent, #000 70%); mask-image: linear-gradient(transparent, #000 70%); }
+/* iPhone's browser (LINE included) ignores a backdrop blur that has a mask, so each edge is a copy of the page background
+   (sized to the whole screen so it lines up with #bg) faded out with a mask, which it does support */
+body::before, body::after { content: ""; position: fixed; left: 0; right: 0; z-index: 2; pointer-events: none;
+  background: var(--wash), var(--bg); background-size: 100% 100vh; }
+body::before { top: 0; height: calc(64px + env(safe-area-inset-top)); background-position: top;
+  -webkit-mask-image: linear-gradient(#000 35%, transparent); mask-image: linear-gradient(#000 35%, transparent); }
+body::after { bottom: 0; height: calc(104px + env(safe-area-inset-bottom)); background-position: bottom;
+  -webkit-mask-image: linear-gradient(transparent, #000 75%); mask-image: linear-gradient(transparent, #000 75%); }
 #bg { position: fixed; inset: 0; z-index: -1; background: var(--wash), var(--bg); }
 main { max-width: 560px; margin: 0 auto; padding: calc(56px + env(safe-area-inset-top)) 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 h1 { margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700; }
@@ -380,11 +385,11 @@ function range() {  // the entries tab's current date range
   const f = ui.f, t = today();
   return f.mode === 'month' ? cycle(f.off) : f.mode === 'custom' ? {from: f.from, to: f.to} : {from: addD(t, 1 - f.mode), to: t};
 }
-function catRows(list) {  // [name, total, colour] for every expense category; id 0 = category was deleted
+function catRows(list) {  // [name, total, colour] for every expense category, biggest spend first; id 0 = category was deleted
   const m = new Map();
   for (const e of list) if (e.kind === 'expense') { const k = cat(e.category_id) ? e.category_id : 0; m.set(k, (m.get(k) || 0) + e.amount); }
   return S.categories.filter(c => c.kind === 'expense').map(c => [c.name, m.get(c.id) || 0, catColor(c.id)])
-    .concat(m.get(0) ? [[L('ไม่มีหมวด', 'Uncategorised'), m.get(0), '#A9A9B0']] : []);
+    .concat(m.get(0) ? [[L('ไม่มีหมวด', 'Uncategorised'), m.get(0), '#A9A9B0']] : []).sort((a, b) => b[1] - a[1]);
 }
 function channelRows(list) {  // spending per payment channel
   const by = new Map();
@@ -406,9 +411,10 @@ function chart(id, type, labels, datasets, options = {}) {
   if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options})));
   return `<canvas id="${id}"></canvas>`;
 }
-const donut = (id, rows) => chart(id, 'doughnut', rows.map(r => r[0]),
+const donut = (id, all) => { const sum = all.reduce((a, r) => a + r[1], 0), rows = all.filter(r => r[1] >= sum * .02);  // under 2% draws as a stray line
+  return chart(id, 'doughnut', rows.map(r => r[0]),
   [{data: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0, borderRadius: 7, spacing: 3}],
-  {cutout: '66%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.parsed)}}}});
+  {cutout: '66%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.parsed)}}}}); };
 
 // ---------- shared pieces ----------
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
