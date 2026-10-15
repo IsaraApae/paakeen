@@ -57,10 +57,11 @@ body {
   font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", Thonburi, system-ui, sans-serif;
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
-#bg { position: fixed; inset: 0; z-index: -1; background: linear-gradient(var(--top-solid), transparent 120px), var(--wash), var(--bg); }
-/* LINE's iPhone browser fills the strip behind the clock with the theme colour, and while scrolling draws only
-   scrolling content there, never the fixed #bg. #strip scrolls with the page under #bg in that same colour, which is
-   also where #bg starts, so the top of the screen is one colour that blends into the background. */
+#bg { position: fixed; inset: 0; z-index: -1; background: linear-gradient(var(--top-solid), transparent 120px),
+  linear-gradient(transparent calc(100% - 120px), var(--top-solid)), var(--wash), var(--bg); }  /* starts and ends in the strip colour */
+/* LINE's iPhone browser fills the strips behind the clock and behind its bottom address bar with the theme colour,
+   and while scrolling draws only scrolling content there, never the fixed #bg. #strip scrolls with the page under #bg
+   in that same colour, which is also where #bg starts and ends, so both edges blend into the background. */
 body { position: relative; min-height: 100vh; }
 /* content softens as it scrolls behind the menu bar: a progressive blur from stacked, unmasked layers (LINE's iPhone
    browser ignores a backdrop blur that has a mask), each shorter and stronger toward the bottom; translateZ keeps it
