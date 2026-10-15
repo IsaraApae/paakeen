@@ -55,7 +55,9 @@ body {
   font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", Thonburi, system-ui, sans-serif;
   padding-bottom: calc(104px + env(safe-area-inset-bottom));
 }
-#bg { position: fixed; inset: 0; z-index: -1; background: var(--wash), var(--bg); }
+/* LINE's iPhone browser places fixed layers below the status bar while the page scrolls up behind it, so the
+   background reaches 160px higher, otherwise the strip under the clock showed plain black or grey */
+#bg { position: fixed; top: -160px; left: 0; right: 0; bottom: 0; z-index: -1; background: var(--wash), var(--bg); }
 main { max-width: 560px; margin: 0 auto; padding: calc(56px + env(safe-area-inset-top)) 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 h1 { margin: 0; font-size: 32px; line-height: 1.25; font-weight: 700; }
 button, select, input { font: inherit; color: inherit; margin: 0; }
