@@ -288,7 +288,13 @@ onhashchange = () => location.reload();  // a fresh link tapped while the app is
 let S, tab = 'sum', charts = [], after = [];
 addEventListener('keydown', e => e.key === 'Tab' && document.documentElement.classList.add('kbd'));
 const applyTheme = t => { const r = document.documentElement; t === 'light' || t === 'dark' ? r.dataset.theme = t : r.removeAttribute('data-theme'); try { localStorage.setItem('theme', t); } catch {} topTint(); };
-const topTint = () => $('meta[name=theme-color]').content = getComputedStyle(document.documentElement).getPropertyValue('--top-solid').trim();  // LINE and Safari colour the strip under the clock with it
+// LINE and Safari colour the strips behind the clock and the bottom bar from the page, but only look again when a
+// fixed layer changes (a screen recording showed the bottom catching up only once a sheet opened). So after the
+// colour changes, the fixed background layers are swapped for fresh copies, which makes them look again right away.
+const topTint = () => {
+  $('meta[name=theme-color]').content = getComputedStyle(document.documentElement).getPropertyValue('--top-solid').trim();
+  setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
+};
 try { applyTheme(localStorage.getItem('theme')); } catch {}
 const ui = {sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
             f: {mode: 'month', off: 0, from: '', to: '', kind: 'all', cat: null}};
