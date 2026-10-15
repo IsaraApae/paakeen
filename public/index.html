@@ -646,9 +646,13 @@ function render() {
 const go = t => { tab = t; ui.sel = null; ui.sort = false; render(); scrollTo(0, 0); };
 const U = o => { Object.assign(ui, o); render(); };
 const F = o => { Object.assign(ui.f, o); render(); };
-// a theme change reloads too: LINE reads the theme colour (the strips behind the clock and its bottom bar) only when
-// the page opens; applyTheme first stores the new theme so the reloaded page starts in it
-const setS = async o => { await api('PUT', 'settings', o); if (o.theme) applyTheme(o.theme); o.lang || o.theme ? location.reload() : load(); };
+// a language change reloads (every label is rebuilt); the open tab is kept so it doesn't jump back to สรุป
+const setS = async o => {
+  await api('PUT', 'settings', o);
+  if (!o.lang) return load();
+  try { sessionStorage.setItem('tab', tab); } catch {}
+  location.reload();
+};
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { topTint(); S && render(); });  // charts read their colours from CSS
 
 // ---------- actions ----------
@@ -933,7 +937,9 @@ load().then(() => {
   ui.month = today().slice(0, 7);
   Object.assign(ui.f, cycle(0));
   render();
+  let back = null; try { back = sessionStorage.getItem('tab'); sessionStorage.removeItem('tab'); } catch {}
   if (hash.get('tab') in VIEWS) go(hash.get('tab'));  // the chat menu's tiles
+  else if (back in VIEWS) go(back);  // after a reload from ตั้งค่า
   if (hash.get('add')) editEntry();
   if (hash.get('edit')) editEntry(+hash.get('edit'));
 });
