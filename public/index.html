@@ -439,19 +439,21 @@ const GAPS = {id: 'gaps', beforeDatasetDraw(c) {
     x.fillStyle = x.strokeStyle = a.options.backgroundColor;
     x.beginPath();
     if (arcs.length === 1) { x.arc(cx, cy, r1, s, e); x.arc(cx, cy, r0, e, s, true); x.fill(); continue; }
-    const R = r1 - K, r = r0 + K, h = GAP / 2 + K, o = Math.asin(Math.min(1, h / R)), i = Math.asin(Math.min(1, h / r));
+    // a narrow slice gets smaller corners, so its inner edge isn't squeezed to a point and it keeps straight sides
+    const k = Math.max(.5, Math.min(K, ((e - s) * r0 - GAP) / 2 - .5));
+    const R = r1 - k, r = r0 + k, h = GAP / 2 + k, o = Math.asin(Math.min(1, h / R)), i = Math.asin(Math.min(1, h / r));
     x.arc(cx, cy, R, Math.min(s + o, mid), Math.max(e - o, mid));
     x.arc(cx, cy, r, Math.max(e - i, mid), Math.min(s + i, mid), true);
     x.closePath(); x.fill();
-    x.lineWidth = 2 * K; x.lineJoin = 'round'; x.stroke();
+    x.lineWidth = 2 * k; x.lineJoin = 'round'; x.stroke();
   }
   x.restore();
   return false;  // skip Chart.js's own drawing of the slices
 }};
-// every category in the list below gets a slice, at least 2% wide so a small one doesn't vanish (the tap label shows the real amount)
+// every category in the list below gets a slice, at least 2.5% wide so a small one keeps its shape (the tap label shows the real amount)
 const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0);
   return chart(id, 'doughnut', rows.map(r => r[0]),
-  [{data: rows.map(r => Math.max(r[1], sum * .02)), real: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0}],
+  [{data: rows.map(r => Math.max(r[1], sum * .025)), real: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0}],
   {cutout: '70%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.dataset.real[c.dataIndex])}}}}, [GAPS]); };
 
 // ---------- shared pieces ----------
