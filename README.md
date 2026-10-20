@@ -30,7 +30,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 | สรุป | Income, expenses and what's left for the current period (starts on your chosen day of the month), spending by category, totals per payment channel, latest entries |
 | วิเคราะห์ | Six months of income and expense bars; daily bars for spending or income with the daily spending average; spending by category for any month or all time |
 | หมวดหมู่ | Add, rename, recolour and reorder categories; set the day each period starts |
-| รายการ | Every entry, filtered by type, period and category; select several to recategorise or delete; export to Excel or CSV |
+| รายการ | Every entry, filtered by type, period and category (only categories used in that period, biggest spend first); select several to recategorise or delete; export to Excel or CSV |
 | ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, theme (light, dark or match device), Thai or English, currency, time zone |
 
 <p>

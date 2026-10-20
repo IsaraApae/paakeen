@@ -652,7 +652,10 @@ function render() {
   if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep')}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   document.body.classList.toggle('selecting', !!ui.sel);
+  const chips = $('.chips'), was = chips && [chips.dataset.k, chips.scrollLeft];
   $('#main').innerHTML = VIEWS[tab]();
+  // tapping a category chip redraws the page; keep the chip row scrolled where it was instead of back at the start
+  if (was && $('.chips')?.dataset.k === was[0]) $('.chips').scrollLeft = was[1];
   if (S.settings.lang === 'en') translate(document.body);
   after.forEach(f => f());
 }
@@ -892,7 +895,7 @@ const VIEWS = {
     ${seg([['month', 'เดือน'], ['7', '7 วัน'], ['14', '14 วัน'], ['custom', 'กำหนดเอง']], f.mode, v => `F({mode: '${v}'})`)}
     ${f.mode === 'month' ? stepper(cycleLabel(cycle(f.off)), 'F({off: ui.f.off - 1})', 'F({off: ui.f.off + 1})', f.off >= 0) : ''}
     ${f.mode === 'custom' ? `<div class="group"><button class="row tap" onclick="listRange()"><span class="grow">ช่วงวันที่</span><span class="muted">${rangeText(f.from, f.to)}</span>${CHEV}</button></div>` : ''}
-    ${cats.length ? `<div class="chips">${chip(!f.cat, 'F({cat: null})', 'ทั้งหมด')}${cats.map(c => chip(f.cat === c.id, `F({cat: ${c.id}})`, esc(c.name))).join('')}</div>` : ''}
+    ${cats.length ? `<div class="chips" data-k="${f.kind}">${chip(!f.cat, 'F({cat: null})', 'ทั้งหมด')}${cats.map(c => chip(f.cat === c.id, `F({cat: ${c.id}})`, esc(c.name))).join('')}</div>` : ''}
     ${days(list) || '<p class="empty">ยังไม่มีรายการในช่วงนี้ พิมพ์บอกป้าคีนใน LINE หรือกด + เพื่อจดเอง</p>'}`;
   },
 
