@@ -136,6 +136,9 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .chart { padding: 18px 14px 8px; }
 .dash { display: inline-block; width: 14px; border-top: 1.5px dashed var(--label2); vertical-align: middle; margin-left: 4px; }
 .donut { width: min(62%, 220px); margin: 0 auto; padding: 20px 0 12px; }
+.ring { position: relative; }
+.ring-total { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.ring-total b { font-size: 20px; font-weight: 700; }
 .inline-icon { width: 14px; height: 14px; vertical-align: -2px; color: #B58100; }
 .check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--label2); display: grid; place-items: center; flex: none; color: transparent; }
 .check.on { background: var(--red); border-color: var(--red); color: #fff; }
@@ -316,7 +319,7 @@ const CHEV = I.chevR.replace('<svg', '<svg class="chev"');
 const EN = {
   'สรุป': 'Summary', 'วิเคราะห์': 'Analysis', 'หมวดหมู่': 'Categories', 'รายการ': 'Entries', 'ตั้งค่า': 'Settings',
   'เหลือเก็บ': 'Left to save', 'รายจ่าย': 'Expense', 'รายรับ': 'Income', 'รายจ่ายตามหมวด': 'Expense by category', 'ยังไม่มีรายจ่ายในเดือนนี้': 'No spending this month yet', 'ยังไม่มีรายรับในเดือนนี้': 'No income this month yet',
-  'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
+  'รวม': 'Total', 'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
   'ยังไม่มีรายจ่ายในช่วงนี้': 'No expenses in this period', 'ไม่มีหมวด': 'Uncategorised',
   'ยังไม่มีรายการในช่วงนี้ พิมพ์บอกป้าคีนใน LINE หรือกด + เพื่อจดเอง': 'Nothing here yet. Message the bot in LINE, or tap + to add one yourself.',
   'รายเดือน': 'Monthly', 'รายวัน': 'Daily', 'รายจ่ายเฉลี่ยต่อเดือน': 'Avg. monthly expense', 'รายรับเฉลี่ยต่อเดือน': 'Avg. monthly income',
@@ -427,18 +430,22 @@ function chart(id, type, labels, datasets, options = {}) {
   if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options})));
   return `<canvas id="${id}"></canvas>`;
 }
-const donut = (id, all) => { const sum = all.reduce((a, r) => a + r[1], 0), rows = all.filter(r => r[1] >= sum * .02);  // under 2% draws as a stray line
-  return chart(id, 'doughnut', rows.map(r => r[0]),
-  [{data: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0, borderRadius: 7, spacing: 3}],
-  {cutout: '66%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.parsed)}}}}); };
+// every category in the list below gets a slice, at least 2% wide so a small one doesn't draw as a stray line (the tap
+// label shows the real amount); a single category draws as a whole ring, since a gap would leave a notch at the top
+const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0), one = rows.length === 1;
+  return `<div class="ring">${chart(id, 'doughnut', rows.map(r => r[0]),
+  [{data: rows.map(r => Math.max(r[1], sum * .02)), real: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0, borderRadius: one ? 0 : 4, spacing: one ? 0 : 2}],
+  {cutout: '70%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.dataset.real[c.dataIndex])}}}})}
+  <div class="ring-total"><span class="sub">รวม</span><b class="num">${money(sum)}</b></div></div>`; };
 
 // ---------- shared pieces ----------
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
 const seg = (items, cur, js) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" onclick="${js(v)}">${l}</button>`).join('')}</div>`;
 const stepper = (label, prev, next, last) => `<div class="stepper"><button class="ib" onclick="${prev}" aria-label="previous">${I.chevL}</button>
   <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="next">${I.chevR}</button></div>`;
-const catList = rows => { const sum = rows.reduce((a, r) => a + r[1], 0) || 1; return rows.map(r =>
-  `<div class="row"><i class="dot" style="background:${r[2]}"></i><span class="grow">${esc(r[0])}</span><span class="sub num">${(r[1] / sum * 100).toFixed(0)}%</span><b class="num">${money(r[1])}</b></div>`).join(''); };
+const pct = (n, sum) => { const p = n / (sum || 1) * 100; return (p && p < .5 ? '<1' : p.toFixed(0)) + '%'; };  // a small spend shows as <1%, not 0%
+const catList = rows => { const sum = rows.reduce((a, r) => a + r[1], 0); return rows.map(r =>
+  `<div class="row"><i class="dot" style="background:${r[2]}"></i><span class="grow">${esc(r[0])}</span><span class="sub num">${pct(r[1], sum)}</span><b class="num">${money(r[1])}</b></div>`).join(''); };
 const row = e => {
   const ch = S.channels.find(c => c.id === e.channel_id);
   return `<div class="row tap" onclick="tapEntry(${e.id})">
@@ -868,7 +875,10 @@ const VIEWS = {
   },
 
   list() {
-    const f = ui.f, list = filtered(), cats = f.kind === 'all' ? [] : S.categories.filter(c => c.kind === f.kind);
+    const f = ui.f, list = filtered(), {from, to} = range(), spent = new Map();
+    // category chips: only the ones used in this period, biggest share first (the chosen one stays so it can be cleared)
+    for (const e of between(from, to)) if (e.kind === f.kind) spent.set(e.category_id, (spent.get(e.category_id) || 0) + e.amount);
+    const cats = S.categories.filter(c => c.kind === f.kind && (spent.has(c.id) || c.id === f.cat)).sort((a, b) => (spent.get(b.id) || 0) - (spent.get(a.id) || 0));
     const chip = (on, js, label) => `<button class="chip ${on ? 'on' : ''}" onclick="${js}">${label}</button>`;
     const n = ui.sel?.size;
     return `${title('รายการ', ui.sel
