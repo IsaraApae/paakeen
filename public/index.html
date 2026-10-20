@@ -427,16 +427,26 @@ function chart(id, type, labels, datasets, options = {}, plugins = []) {
   return `<canvas id="${id}"></canvas>`;
 }
 // Chart.js's own slice spacing leaves uneven gaps (small slices nearly touch, the one at the top looks wider), so the
-// slices are drawn whole and every boundary is then cut out at the same width; one category stays a whole ring
-const GAPS = {id: 'gaps', afterDatasetDraw(c) {
+// slices are drawn here: each side runs parallel to the slice's edge, half a gap in, so every gap is the same width
+// from the inner to the outer edge. The shape is drawn K px smaller and stroked K px wide with round joins, which
+// rounds its corners; a tiny slice becomes a small rounded pill. One category stays a whole ring.
+const GAP = 3, K = 5;
+const GAPS = {id: 'gaps', beforeDatasetDraw(c) {
   const arcs = c.getDatasetMeta(0).data, x = c.ctx;
-  if (arcs.length < 2) return;
-  x.save(); x.globalCompositeOperation = 'destination-out'; x.lineWidth = 3;
+  x.save();
   for (const a of arcs) {
-    const cos = Math.cos(a.startAngle), sin = Math.sin(a.startAngle);
-    x.beginPath(); x.moveTo(a.x + (a.innerRadius - 1) * cos, a.y + (a.innerRadius - 1) * sin); x.lineTo(a.x + (a.outerRadius + 1) * cos, a.y + (a.outerRadius + 1) * sin); x.stroke();
+    const {x: cx, y: cy, startAngle: s, endAngle: e, innerRadius: r0, outerRadius: r1} = a, mid = (s + e) / 2;
+    x.fillStyle = x.strokeStyle = a.options.backgroundColor;
+    x.beginPath();
+    if (arcs.length === 1) { x.arc(cx, cy, r1, s, e); x.arc(cx, cy, r0, e, s, true); x.fill(); continue; }
+    const R = r1 - K, r = r0 + K, h = GAP / 2 + K, o = Math.asin(Math.min(1, h / R)), i = Math.asin(Math.min(1, h / r));
+    x.arc(cx, cy, R, Math.min(s + o, mid), Math.max(e - o, mid));
+    x.arc(cx, cy, r, Math.max(e - i, mid), Math.min(s + i, mid), true);
+    x.closePath(); x.fill();
+    x.lineWidth = 2 * K; x.lineJoin = 'round'; x.stroke();
   }
   x.restore();
+  return false;  // skip Chart.js's own drawing of the slices
 }};
 // every category in the list below gets a slice, at least 2% wide so a small one doesn't vanish (the tap label shows the real amount)
 const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0);
