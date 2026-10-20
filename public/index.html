@@ -135,11 +135,7 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .split.three .mid { font-size: 19px; }
 .chart { padding: 18px 14px 8px; }
 .dash { display: inline-block; width: 14px; border-top: 1.5px dashed var(--label2); vertical-align: middle; margin-left: 4px; }
-.donut { width: min(62%, 220px); margin: 0 auto; padding: 20px 0 12px; }
-.ring { position: relative; }
-.ring-total { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
-.ring-total b { font-size: 20px; font-weight: 700; }
-.inline-icon { width: 14px; height: 14px; vertical-align: -2px; color: #B58100; }
+.donut { width: min(62%, 220px); margin: 0 auto; padding: 20px 0 12px; }.inline-icon { width: 14px; height: 14px; vertical-align: -2px; color: #B58100; }
 .check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--label2); display: grid; place-items: center; flex: none; color: transparent; }
 .check.on { background: var(--red); border-color: var(--red); color: #fff; }
 .check svg { width: 14px; height: 14px; stroke-width: 3; }
@@ -319,7 +315,7 @@ const CHEV = I.chevR.replace('<svg', '<svg class="chev"');
 const EN = {
   'สรุป': 'Summary', 'วิเคราะห์': 'Analysis', 'หมวดหมู่': 'Categories', 'รายการ': 'Entries', 'ตั้งค่า': 'Settings',
   'เหลือเก็บ': 'Left to save', 'รายจ่าย': 'Expense', 'รายรับ': 'Income', 'รายจ่ายตามหมวด': 'Expense by category', 'ยังไม่มีรายจ่ายในเดือนนี้': 'No spending this month yet', 'ยังไม่มีรายรับในเดือนนี้': 'No income this month yet',
-  'รวม': 'Total', 'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
+  'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
   'ยังไม่มีรายจ่ายในช่วงนี้': 'No expenses in this period', 'ไม่มีหมวด': 'Uncategorised',
   'ยังไม่มีรายการในช่วงนี้ พิมพ์บอกป้าคีนใน LINE หรือกด + เพื่อจดเอง': 'Nothing here yet. Message the bot in LINE, or tap + to add one yourself.',
   'รายเดือน': 'Monthly', 'รายวัน': 'Daily', 'รายจ่ายเฉลี่ยต่อเดือน': 'Avg. monthly expense', 'รายรับเฉลี่ยต่อเดือน': 'Avg. monthly income',
@@ -426,17 +422,27 @@ function translate(root) {
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let n; (n = w.nextNode());) { const k = n.nodeValue.trim(); if (EN[k]) n.nodeValue = n.nodeValue.replace(k, EN[k]); }
 }
-function chart(id, type, labels, datasets, options = {}) {
-  if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options})));
+function chart(id, type, labels, datasets, options = {}, plugins = []) {
+  if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options, plugins})));
   return `<canvas id="${id}"></canvas>`;
 }
-// every category in the list below gets a slice, at least 2% wide so a small one doesn't draw as a stray line (the tap
-// label shows the real amount); a single category draws as a whole ring, since a gap would leave a notch at the top
-const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0), one = rows.length === 1;
-  return `<div class="ring">${chart(id, 'doughnut', rows.map(r => r[0]),
-  [{data: rows.map(r => Math.max(r[1], sum * .02)), real: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0, borderRadius: one ? 0 : 4, spacing: one ? 0 : 2}],
-  {cutout: '70%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.dataset.real[c.dataIndex])}}}})}
-  <div class="ring-total"><span class="sub">รวม</span><b class="num">${money(sum)}</b></div></div>`; };
+// Chart.js's own slice spacing leaves uneven gaps (small slices nearly touch, the one at the top looks wider), so the
+// slices are drawn whole and every boundary is then cut out at the same width; one category stays a whole ring
+const GAPS = {id: 'gaps', afterDatasetDraw(c) {
+  const arcs = c.getDatasetMeta(0).data, x = c.ctx;
+  if (arcs.length < 2) return;
+  x.save(); x.globalCompositeOperation = 'destination-out'; x.lineWidth = 3;
+  for (const a of arcs) {
+    const cos = Math.cos(a.startAngle), sin = Math.sin(a.startAngle);
+    x.beginPath(); x.moveTo(a.x + (a.innerRadius - 1) * cos, a.y + (a.innerRadius - 1) * sin); x.lineTo(a.x + (a.outerRadius + 1) * cos, a.y + (a.outerRadius + 1) * sin); x.stroke();
+  }
+  x.restore();
+}};
+// every category in the list below gets a slice, at least 2% wide so a small one doesn't vanish (the tap label shows the real amount)
+const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0);
+  return chart(id, 'doughnut', rows.map(r => r[0]),
+  [{data: rows.map(r => Math.max(r[1], sum * .02)), real: rows.map(r => r[1]), backgroundColor: rows.map(r => r[2]), borderWidth: 0}],
+  {cutout: '70%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.dataset.real[c.dataIndex])}}}}, [GAPS]); };
 
 // ---------- shared pieces ----------
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
