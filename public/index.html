@@ -95,6 +95,8 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 
 /* large title; its actions float as glass at the top right */
 .title { padding: 4px 4px 0; }
+.title h1 { display: flex; align-items: center; gap: 10px; }
+.logo { width: 38px; height: auto; flex: none; stroke: none; }  /* not the icons' outline */
 .acts { position: fixed; z-index: 3; top: calc(8px + env(safe-area-inset-top)); right: max(16px, calc(50vw - 264px)); display: flex; align-items: center; gap: 8px; }
 .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--fill); border: .5px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
 .link { color: var(--red); font-size: 17px; padding: 6px 4px; }
@@ -457,7 +459,10 @@ const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0);
   {cutout: '70%', plugins: {legend: {display: false}, tooltip: {displayColors: false, callbacks: {label: c => money(c.dataset.real[c.dataIndex])}}}}, [GAPS]); };
 
 // ---------- shared pieces ----------
-const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
+// the logo (a chat bubble with ฿, transparent around it) sits before each page title, in the web app only
+const LOGO = `<svg class="logo" viewBox="18 34 84 63" aria-hidden="true"><path d="M28 34h64a10 10 0 0 1 10 10v30a10 10 0 0 1-10 10H55l-17 13v-13H28a10 10 0 0 1-10-10V44a10 10 0 0 1 10-10z" fill="#C24A44"/>
+  <path d="M50 45h11a7 7 0 0 1 0 14h-11zM50 59h13a7 7 0 0 1 0 14h-13zM56.5 39v40" fill="none" stroke="#fff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+const title = (text, acts = '') => `<div class="title"><h1>${LOGO}${text}</h1></div><div class="acts">${acts}</div>`;
 const seg = (items, cur, js) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" onclick="${js(v)}">${l}</button>`).join('')}</div>`;
 const stepper = (label, prev, next, last) => `<div class="stepper"><button class="ib" onclick="${prev}" aria-label="previous">${I.chevL}</button>
   <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="next">${I.chevR}</button></div>`;

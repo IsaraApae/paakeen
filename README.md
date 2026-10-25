@@ -47,6 +47,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 - **Privacy:** only 1:1 chats are read, never group chats. Each user's web app link is signed and expires.
 - `make-menu.py`: draws the chat menu image (`public/menu.jpg`, macOS only).
 - `test.mjs`: an end-to-end check that runs the worker locally against a mock LINE and Gemini (`node test.mjs`).
+- `seed.mjs`: fills a local `wrangler dev` with a test user and a few months of sample entries, and prints a link to open the web app as that user.
 
 ## Run your own
 
