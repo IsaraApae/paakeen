@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F6E4E3">
+<meta name="theme-color" content="#F6E4E3" media="(prefers-color-scheme: light)">  <!-- --top-solid; a script adds a third tag only for a picked theme opposite the phone's -->
+<meta name="theme-color" content="#200905" media="(prefers-color-scheme: dark)">
 <title>ป้าคีน</title>
 <link rel="icon" href="/favicon.ico?v=2" sizes="any">  <!-- ?v= makes browsers drop an icon (or "no icon") they cached; bump it when the icon changes -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png?v=2">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2">  <!-- iPhone browsers take the page icon from this -->
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">  <!-- iPhone browsers take the page icon from this -->
 <link rel="manifest" href="/manifest.webmanifest">
 <script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
 <style>
@@ -295,9 +296,20 @@ const applyTheme = t => { const r = document.documentElement; t === 'light' || t
 // LINE and Safari colour the strips behind the clock and the bottom bar from the page, but only look again when a
 // fixed layer changes (a screen recording showed the bottom catching up only once a sheet opened). So after the
 // colour changes, the fixed background layers are swapped for fresh copies, which makes them look again right away.
+// iPhone Safari drops the page's icon (a globe in the tab view) whenever a script writes theme-color, even the same colour,
+// and render() calls this every time. So nothing happens unless the colour changed, and the tags in <head> are only
+// overridden when the theme picked in settings is the opposite of the phone's.
+let tint;
 const topTint = () => {
-  $('meta[name=theme-color]').content = getComputedStyle(document.documentElement).getPropertyValue('--top-solid').trim();
-  setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
+  const r = document.documentElement, c = getComputedStyle(r).getPropertyValue('--top-solid').trim();
+  if (c === tint) return;
+  const first = tint === undefined, own = $('meta[name=theme-color]:not([media])');
+  tint = c;
+  if (r.dataset.theme && r.dataset.theme !== (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) {
+    if (own) own.content = c;
+    else $('meta[name=theme-color]').before(Object.assign(document.createElement('meta'), {name: 'theme-color', content: c}));  // the first matching tag wins
+  } else own?.remove();
+  if (!first) setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
 };
 try { applyTheme(localStorage.getItem('theme')); } catch {}
 const ui = {sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
