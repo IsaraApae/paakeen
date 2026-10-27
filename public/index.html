@@ -287,7 +287,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '
 const hash = new URLSearchParams(location.hash.slice(1));
 let token = hash.get('t');
 try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t'); } catch {}
-history.replaceState(null, '', location.pathname);  // keep the token out of the address bar and history
+if (location.hash) history.replaceState(null, '', location.pathname + location.search);  // keep the token out of the address bar and history
 onhashchange = () => location.reload();  // a fresh link tapped while the app is already open
 
 let S, tab = 'sum', charts = [], after = [];
