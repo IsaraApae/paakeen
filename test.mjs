@@ -25,6 +25,7 @@ const mock = createServer(async (req, res) => {
   if (req.url.endsWith('/push')) { pushes.push(JSON.parse(body)); return json({}); }
   if (req.url.endsWith('/content')) return res.writeHead(200, {'Content-Type': 'image/jpeg'}).end(Buffer.from([1, 2, 3]));
   if (req.url.includes('busy-model')) return res.writeHead(503).end('overloaded');  // forces the fallback model
+  if (req.url.includes('slow-model')) { await sleep(8000); return res.writeHead(503).end('too late'); }  // hangs: the next model is started alongside
   if (req.url.includes(':generateContent')) {
     const {contents, generationConfig} = JSON.parse(body);
     // ok-model stands in for a model that doesn't accept the thinking setting
@@ -37,7 +38,7 @@ const mock = createServer(async (req, res) => {
   res.writeHead(404).end();
 }).listen(MOCK);
 
-const vars = {LINE_CHANNEL_SECRET: 'dev', LINE_CHANNEL_ACCESS_TOKEN: 'dev', GEMINI_API_KEY: 'dev', LINE_API: mockUrl, LINE_DATA_API: mockUrl, GEMINI_API: mockUrl, GEMINI_MODEL: 'busy-model,ok-model', GEMINI_FAST_MODEL: 'fast-model'};
+const vars = {LINE_CHANNEL_SECRET: 'dev', LINE_CHANNEL_ACCESS_TOKEN: 'dev', GEMINI_API_KEY: 'dev', LINE_API: mockUrl, LINE_DATA_API: mockUrl, GEMINI_API: mockUrl, GEMINI_MODEL: 'busy-model,slow-model,ok-model', GEMINI_FAST_MODEL: 'fast-model'};
 const dev = spawn('npx', ['wrangler', 'dev', '--port', String(PORT), '--test-scheduled', '--persist-to', mkdtempSync(join(tmpdir(), 'paakeen-')),
   ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`])], {stdio: process.env.DEBUG ? 'inherit' : 'ignore'});
 
@@ -159,7 +160,7 @@ try {
   entries = [{kind: 'expense', amount: 99, category: 'อาหาร', note: 'สลิป'}];
   const slip = await hook({type: 'message', message: {type: 'image', id: '42'}});
   assert.deepEqual(geminiParts[0].inline_data, {mime_type: 'image/jpeg', data: 'AQID'});
-  assert.equal(geminiModel, 'ok-model');  // a photo goes to the stronger list (its first model was busy)
+  assert.equal(geminiModel, 'ok-model');  // a photo goes to the stronger list; busy moves on at once, slow gets company after a few seconds
   assert.equal(geminiThinking, undefined);  // ok-model rejected the thinking setting, so it was asked again without
 
   // slip follow-up: paid in cash; the bot asks the name, files it by that name (no category question), shows the card

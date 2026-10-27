@@ -195,30 +195,46 @@ async function gemini(env, parts, system) {
     generationConfig: {responseMimeType: 'application/json', responseSchema: ENTRY_SCHEMA,
       ...(noThinkingConfig.has(model) ? {} : {thinkingConfig: thinking(model)})},
   });
-  // Each list is comma-separated: when one model is overloaded or out of free quota, the next is tried.
   // Plain text is the easy case and goes to the fast list; photos, voice and PDFs go to the stronger one.
   const easy = parts.every(p => p.text !== undefined);
-  let error;
-  for (const model of (easy ? env.GEMINI_FAST_MODEL || env.GEMINI_MODEL : env.GEMINI_MODEL).split(',').map(m => m.trim())) {
-    try {
-      const ask = () => call(`${env.GEMINI_API || 'https://generativelanguage.googleapis.com'}/v1beta/models/${model}:generateContent`, {
-        method: 'POST', headers: {'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY}, body: body(model),
-        signal: AbortSignal.timeout(9000),  // 3 models x 9s stays inside the ~30s allowed after answering LINE
-      });
-      const r = await ask().catch(e => {
-        if (e.status !== 400 || noThinkingConfig.has(model)) throw e;
-        noThinkingConfig.add(model);
-        return ask();
-      });
-      const text = (await r.json()).candidates[0].content.parts.filter(p => !p.thought).map(p => p.text || '').join('');
-      return JSON.parse(text).entries || [];
-    } catch (e) {
-      if (e.name === 'TimeoutError' || e.name === 'AbortError') e.status = 503;  // a hung model counts as busy
-      error = e;
-      if (![404, 429, 503].includes(e.status)) throw e;  // 404: a model name Google has retired, so move on
-    }
-  }
-  throw error;
+  const models = (easy ? env.GEMINI_FAST_MODEL || env.GEMINI_MODEL : env.GEMINI_MODEL).split(',').map(m => m.trim());
+  const stop = new AbortController();  // once one model answers, the others are cancelled
+  const ask = async model => {
+    const go = () => call(`${env.GEMINI_API || 'https://generativelanguage.googleapis.com'}/v1beta/models/${model}:generateContent`, {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY}, body: body(model),
+      signal: AbortSignal.any([stop.signal, AbortSignal.timeout(9000)]),
+    });
+    const t0 = Date.now();
+    const r = await go().catch(e => {
+      if (e.status !== 400 || noThinkingConfig.has(model)) throw e;
+      noThinkingConfig.add(model);  // this model doesn't take the thinking setting: ask again without it
+      return go();
+    });
+    const text = (await r.json()).candidates[0].content.parts.filter(p => !p.thought).map(p => p.text || '').join('');
+    console.log(JSON.stringify({gemini: model, ms: Date.now() - t0, media: !easy}));
+    return JSON.parse(text).entries || [];
+  };
+  // Hedged: start the first model; if it hasn't answered after HEDGE ms, also start the next one, and so on.
+  // A busy or retired model (503, 429, 404, or a hang) moves on straight away. The first answer wins.
+  // ponytail: a slow model costs a second free-tier request; lower HEDGE only if replies are still slow
+  const HEDGE = easy ? 3500 : 6000;
+  return new Promise((resolve, reject) => {
+    let started = 0, running = 0, done = false, error;
+    const finish = (ok, v) => { if (done) return; done = true; stop.abort(); ok ? resolve(v) : reject(v); };
+    const next = () => {
+      if (done || started >= models.length) return;
+      const model = models[started++], timer = setTimeout(next, HEDGE);
+      running++;
+      ask(model).then(v => finish(true, v), e => {
+        if (e.name === 'TimeoutError' || e.name === 'AbortError') e.status = 503;  // a hung model counts as busy
+        error = e;
+        if (![404, 429, 503].includes(e.status)) return finish(false, e);
+        clearTimeout(timer);
+        next();
+      }).finally(() => { clearTimeout(timer); if (--running === 0 && started >= models.length) finish(false, error); });
+    };
+    next();
+  });
 }
 
 // The small models sometimes respell Thai (แซนวิสไส้กรอกไก้ came back as แกนวิสไสเกรอกไก). If the note isn't in what the
@@ -443,10 +459,17 @@ function toBase64(bytes) {
 }
 
 // One LINE webhook event in, a list of LINE messages out.
-async function handleEvent(env, origin, ev) {
+// later: work that can wait until the reply has been sent; the webhook runs it afterwards, one at a time, so nothing
+// here writes the user's settings at the same moment as the reply's own steps
+async function handleEvent(env, origin, ev, later = []) {
+  const m = ev.message, t0 = Date.now();
+  const media = ev.type === 'message' && (['image', 'audio'].includes(m.type) || (m.type === 'file' && (m.fileName || '').toLowerCase().endsWith('.pdf')));
+  // a slip, voice note or PDF starts downloading straight away, alongside the user lookup
+  const download = media ? lineApi(env, `/v2/bot/message/${m.id}/content`, null, env.LINE_DATA_API || 'https://api-data.line.me') : null;
+  download?.catch(() => {});  // handled where it's awaited
   const u = await getUser(env, ev.source.userId, true);
   await applyRecurring(env, u);
-  await ensureMenu(env, origin, u).catch(console.error);
+  later.push(() => ensureMenu(env, origin, u));
   if (ev.type === 'follow') return [textMsg('สวัสดีจ้ะหลาน ป้าคีนจะช่วยจดรายรับรายจ่ายให้เอง\n' + HELP)];
   if (ev.type === 'postback') {
     if (ev.postback.data === 'sum') return [await summaryMsg(env, origin, u)];
@@ -454,7 +477,6 @@ async function handleEvent(env, origin, ev) {
     return [typeof reply === 'string' ? textMsg(reply) : reply];
   }
   if (ev.type !== 'message') return [];
-  const m = ev.message;
   let parts;
   if (m.type === 'text') {
     const text = m.text.trim();
@@ -475,9 +497,10 @@ async function handleEvent(env, origin, ev) {
       return [await nextStep(env, origin, u, {named: true})];
     }
     parts = [{text}];
-  } else if (['image', 'audio'].includes(m.type) || (m.type === 'file' && (m.fileName || '').toLowerCase().endsWith('.pdf'))) {
-    const r = await lineApi(env, `/v2/bot/message/${m.id}/content`, null, env.LINE_DATA_API || 'https://api-data.line.me');
+  } else if (media) {
+    const r = await download;
     const bytes = new Uint8Array(await r.arrayBuffer());
+    console.log(JSON.stringify({downloaded: m.type, kb: Math.round(bytes.length / 1024), ms: Date.now() - t0}));
     // ponytail: inline upload, capped for the free plan's CPU limit; use Gemini's Files API if bigger files matter
     if (bytes.length > 4_000_000) return [textMsg('ไฟล์ใหญ่เกินไปจ้ะ ส่งไฟล์ที่เล็กกว่า 4 MB นะ')];
     const mime = {audio: 'audio/mp4', file: 'application/pdf'}[m.type] || (r.headers.get('Content-Type') || 'image/jpeg').split(';')[0];
@@ -486,6 +509,7 @@ async function handleEvent(env, origin, ev) {
     return [textMsg(HELP)];
   }
   const saved = await record(env, u, parts);
+  console.log(JSON.stringify({recorded: m.type, entries: saved.length, ms: Date.now() - t0}));
   if (m.type === 'image' && saved.length === 1) {  // a slip: paid in cash; ask the name, then the category, then show the card
     const e = saved[0];
     let cash = e.kind === 'expense' && await q(env, "SELECT id FROM channels WHERE user_id = ? AND type = 'cash' ORDER BY id LIMIT 1", u.id).first();
@@ -508,8 +532,9 @@ async function webhook(request, env, ctx) {
       try {
         const dots = ev.type === 'message' ? lineApi(env, '/v2/bot/chat/loading/start', {chatId: ev.source.userId, loadingSeconds: 20}).catch(() => {}) : null;
         let msgs;
+        const later = [];
         try {
-          msgs = await handleEvent(env, origin, ev);
+          msgs = await handleEvent(env, origin, ev, later);
         } catch (e) {
           console.error(e);
           msgs = [textMsg(e.status === 429 ? QUOTA : e.status === 503 ? BUSY : FAIL)];
@@ -523,6 +548,7 @@ async function webhook(request, env, ctx) {
             await lineApi(env, '/v2/bot/message/reply', {replyToken: ev.replyToken, messages: [textMsg(msgs.map(m => m.altText || m.text).join('\n'))]});
           });
         }
+        for (const job of later) await job().catch(console.error);
       } catch (e) {
         console.error(e);
       }
