@@ -17,7 +17,9 @@ crons = ["*/5 * * * *"]  # daily reminders (up to 5 minutes late) and chat-menu 
 [vars]
 APP_ORIGIN = "https://paakeen.p-isarabhakdi.workers.dev"  # used by the scheduled job, which has no request to read it from
 # tried in order; the next one is used when a model is overloaded or out of free quota
-GEMINI_MODEL = "gemini-3.8-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash"  # photos, voice notes, PDFs
+# photos, voice notes, PDFs: live timings showed 3.8 and 3.5 Flash taking over 9s on a slip and a voice note while
+# Flash-Lite answered in ~1.6s, so Flash-Lite goes first and the stronger ones step in if it is slow
+GEMINI_MODEL = "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-2.5-flash"
 GEMINI_FAST_MODEL = "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-2.5-flash"  # typed messages: quickest model first
 
 # Secrets, set once with `wrangler secret put <NAME>`:
