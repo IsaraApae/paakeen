@@ -9,7 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">  <!-- iPhone browsers take the page icon from this -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
 <style>
 /* Liquid Glass: controls and navigation float as translucent glass above an opaque content layer */
 :root {
@@ -661,13 +661,22 @@ const entryBody = r => ({amount: +r.amount, note: r.note, kind: r.kind, category
 async function api(method, path, body) {
   const r = await fetch('/api/' + path, {method, headers: {Authorization: 'Bearer ' + token}, body: body && JSON.stringify(body)});
   if (r.status === 401) {
+    try { localStorage.removeItem(CACHE); } catch {}
     $('#main').innerHTML = '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>';
     throw new Error('auth');
   }
   if (!r.ok) { toast(L('บันทึกไม่สำเร็จ ลองอีกครั้ง', 'Could not save. Try again.')); throw new Error(r.status); }
   return r.json();
 }
-async function load() { S = await api('GET', 'state'); render(); }
+// The last data seen is kept on the phone (per user, so a shared phone never shows someone else's), so the app
+// opens straight away with it while fresh data loads; a few seconds old at most, then replaced
+const CACHE = 'state:' + (token || '').split('.')[0];
+async function load() {
+  S = await api('GET', 'state');
+  render();
+  try { localStorage.setItem(CACHE, JSON.stringify(S)); } catch {}  // full or blocked storage: just no head start next time
+}
+document.getElementById('chartjs').addEventListener('load', () => S && render());  // charts appear once the library is in
 function render() {
   applyTheme(S.settings.theme);
   charts.forEach(c => c.destroy()); charts = []; after = [];
@@ -974,7 +983,7 @@ const VIEWS = {
   },
 };
 
-load().then(() => {
+const start = () => {
   ui.month = today().slice(0, 7);
   Object.assign(ui.f, cycle(0));
   render();
@@ -983,7 +992,11 @@ load().then(() => {
   else if (back in VIEWS) go(back);  // after a reload from ตั้งค่า
   if (hash.get('add')) editEntry();
   if (hash.get('edit')) editEntry(+hash.get('edit'));
-});
+};
+let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE)); } catch {}
+// show the saved copy now and refresh behind it; except for a card's แก้ไข link, whose entry is usually newer than the copy
+if (cached?.settings && !hash.get('edit')) { S = cached; start(); load(); }
+else load().then(start);
 </script>
 </body>
 </html>
