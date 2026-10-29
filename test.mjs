@@ -157,13 +157,13 @@ try {
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ค่าขนม').length, 3, JSON.stringify(both.map(s => s.entries.length)));
 
   // photo: bytes reach the model as base64
-  entries = [{kind: 'expense', amount: 99, category: 'อาหาร', note: 'สลิป'}];
+  entries = [{kind: 'expense', amount: 99, category: 'อาหาร', note: 'สมชาย ใจดี', party: 'person'}];
   const slip = await hook({type: 'message', message: {type: 'image', id: '42'}});
   assert.deepEqual(geminiParts[0].inline_data, {mime_type: 'image/jpeg', data: 'AQID'});
   assert.equal(geminiModel, 'ok-model');  // a photo goes to the stronger list; busy moves on at once, slow gets company after a few seconds
   assert.equal(geminiThinking, undefined);  // ok-model rejected the thinking setting, so it was asked again without
 
-  // slip follow-up: paid in cash; the bot asks the name, files it by that name (no category question), shows the card
+  // slip follow-up: paid in cash; to a person, so the bot asks the name, files it by that name (no category question), shows the card
   assert.match(slip[0].text, /พิมพ์ชื่อรายการ/);
   assert.deepEqual(slip[0].quickReply.items.map(i => i.action.label), ['ข้าม']);
   entries = [{kind: 'expense', amount: 1, category: 'เดินทาง', note: 'ค่าแท็กซี่ 7-11'}];  // the model's pick for the name
@@ -187,6 +187,13 @@ try {
   const again = (await say('ค่าแท็กซี่ 7-11'))[0];
   assert.equal(geminiParts, null);
   assert.match(JSON.stringify(again), /เดินทาง · เงินสด · จำจากครั้งก่อน/);
+
+  // a slip paid to a shop or restaurant keeps that name: no question, the saved card straight away
+  entries = [{kind: 'expense', amount: 120, category: 'อาหาร', note: 'ร้านส้มตำป้าแดง', party: 'business'}];
+  const shop = (await hook({type: 'message', message: {type: 'image', id: '44'}}))[0];
+  assert.equal(shop.type, 'flex');
+  assert.match(JSON.stringify(shop), /จดรายจ่ายแล้ว.*ร้านส้มตำป้าแดง.*อาหาร · เงินสด/);
+  assert.equal((await api(t1, 'GET', 'state')).settings.pending, null);
 
   // postbacks: delete is scoped to the owner; commands
   assert.equal((await hook({type: 'postback', postback: {data: `del:${coffee.id}`}}, 'u2'))[0].text, 'ไม่พบรายการนี้แล้วจ้ะ');

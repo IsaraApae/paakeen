@@ -37,6 +37,7 @@ const ENTRY_SCHEMA = {
       note: {type: 'STRING'},
       datetime: {type: 'STRING'},
       channel: {type: 'STRING'},
+      party: {type: 'STRING', enum: ['business', 'person', 'unknown']},
     },
     required: ['kind', 'amount', 'category', 'note'],
   }}},
@@ -273,6 +274,8 @@ async function record(env, u, parts) {
     + `\`datetime\` is 'YYYY-MM-DD HH:MM' only if the source says when it happened, otherwise ''. Now is ${now}. `
     + (chans.length ? `\`channel\` is how it was paid, one of: ${chans.map(c => c.name).join(', ')}; '' if not stated. ` : '')
     + 'Copy `note` from the user\'s own words exactly, keeping their spelling and every Thai vowel and tone mark; never correct, respell or translate it. '
+    + '`party` is who received the money (expense) or sent it (income): \'business\' for a shop, restaurant, company or brand, '
+    + '\'person\' for a person\'s name, \'unknown\' if it doesn\'t say. For a business, `note` is its name as shown. '
     + 'If there is no amount of money, return an empty list.';
   const saved = [], typed = parts.every(p => p.text !== undefined) && parts.map(p => p.text).join('\n');
   for (const e of await gemini(env, parts, system)) {
@@ -290,7 +293,7 @@ async function record(env, u, parts) {
     const {meta} = await q(env, `${INSERT_ENTRY} VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       u.id, ts, kind, amount, cat?.id ?? null, note, chan?.id ?? null, memory).run();
     const colour = cat ? cat.color || (kind === 'income' ? INCOME_COLOUR : PAL[cats.filter(c => c.kind === 'expense').indexOf(cat) % PAL.length]) : '#A9A9B0';
-    saved.push({id: meta.last_row_id, ts, kind, amount, note, memory, colour, category: cat?.name ?? 'อื่นๆ', channel: chan?.name ?? ''});
+    saved.push({id: meta.last_row_id, ts, kind, amount, note, memory, colour, category: cat?.name ?? 'อื่นๆ', channel: chan?.name ?? '', party: e.party});
   }
   return saved;
 }
@@ -510,11 +513,15 @@ async function handleEvent(env, origin, ev, later = []) {
   }
   const saved = await record(env, u, parts);
   console.log(JSON.stringify({recorded: m.type, entries: saved.length, ms: Date.now() - t0}));
-  if (m.type === 'image' && saved.length === 1) {  // a slip: paid in cash; ask the name, then the category, then show the card
+  if (m.type === 'image' && saved.length === 1) {  // a slip: paid in cash; ask the name (unless it went to a shop), then show the card
     const e = saved[0];
     let cash = e.kind === 'expense' && await q(env, "SELECT id FROM channels WHERE user_id = ? AND type = 'cash' ORDER BY id LIMIT 1", u.id).first();
     if (e.kind === 'expense' && !cash) cash = {id: (await q(env, "INSERT INTO channels (user_id, name, type) VALUES (?, 'เงินสด', 'cash')", u.id).run()).meta.last_row_id};
     await q(env, 'UPDATE entries SET channel_id = ? WHERE id = ? AND user_id = ?', cash ? cash.id : null, e.id, u.id).run();
+    if (e.party === 'business' && e.note) {  // a shop's or restaurant's name is name enough
+      if (pendingOf(u)) await saveSettings(env, u, {pending: null});  // an earlier slip's question would take the next message
+      return [await entryCard(env, origin, u, e.id)];
+    }
     await saveSettings(env, u, {pending: {ids: [e.id], until: Date.now() + 10 * 60e3}});
     return [await nextStep(env, origin, u, {})];
   }
