@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 
 W, H = 2500, 1686
-LABEL, LABEL2 = "#1C1C1E", "#636366"
+LABEL, LABEL2 = "#17171A", "#6B6B73"
 ICON = {
     "home": "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
     "bars": "M6 20v-6M12 20V4M18 20v-9",
@@ -41,35 +41,28 @@ def icon(name, cx, cy, size, colour, width=2):
 def svg():
     # qlmanage renders a square thumbnail, so draw on a square canvas and crop the middle afterwards
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{W}" viewBox="0 0 {W} {W}">', """<defs>
-  <radialGradient id="w1" cx="8%" cy="0%" r="75%"><stop offset="0" stop-color="#FF3B30" stop-opacity=".26"/><stop offset="1" stop-color="#FF3B30" stop-opacity="0"/></radialGradient>
-  <radialGradient id="w2" cx="100%" cy="12%" r="65%"><stop offset="0" stop-color="#FF9F0A" stop-opacity=".22"/><stop offset="1" stop-color="#FF9F0A" stop-opacity="0"/></radialGradient>
-  <radialGradient id="w3" cx="0%" cy="70%" r="60%"><stop offset="0" stop-color="#AF52DE" stop-opacity=".14"/><stop offset="1" stop-color="#AF52DE" stop-opacity="0"/></radialGradient>
-  <radialGradient id="w4" cx="72%" cy="100%" r="75%"><stop offset="0" stop-color="#FF2D55" stop-opacity=".2"/><stop offset="1" stop-color="#FF2D55" stop-opacity="0"/></radialGradient>
-  <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/><stop offset=".5" stop-color="#FFFFFF" stop-opacity=".25"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".6"/></linearGradient>
-  <linearGradient id="btn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D2564F"/><stop offset="1" stop-color="#BB443E"/></linearGradient>
-  <filter id="lift" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="22" stdDeviation="30" flood-color="#000" flood-opacity=".10"/><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity=".05"/></filter>
-</defs>""", f'<rect width="{W}" height="{W}" fill="#F5F3F7"/>', f'<g transform="translate(0 {(W - H) // 2})">']
-    out += [f'<rect width="{W}" height="{H}" fill="url(#w{i})"/>' for i in range(1, 5)]
+  <linearGradient id="btn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF6961"/><stop offset="1" stop-color="#C24A44"/></linearGradient>
+  <filter id="lift" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="20" stdDeviation="28" flood-color="#000" flood-opacity=".08"/><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".04"/></filter>
+</defs>""", f'<rect width="{W}" height="{W}" fill="#F5F5F7"/>', f'<g transform="translate(0 {(W - H) // 2})">']
     for key, (x, y, w, h), ic, label, sub, tint in TILES:
-        r = 150 if w > 500 else 120
-        out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>')
-        out.append(f'<rect x="{x + 2}" y="{y + 2}" width="{w - 4}" height="{h - 4}" rx="{r - 2}" fill="none" stroke="url(#shine)" stroke-width="5"/>')
+        r = 120 if w > 500 else 100
+        out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="#FFFFFF" filter="url(#lift)"/>')
         if key == "add":
             cx, cy = x + 270, y + 280
-            out.append(f'<circle cx="{cx}" cy="{cy}" r="160" fill="url(#btn)" filter="url(#lift)"/>')
-            out.append(f'<circle cx="{cx}" cy="{cy}" r="156" fill="none" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="5"/>')
+            out.append(f'<circle cx="{cx}" cy="{cy}" r="192" fill="#FF6961" fill-opacity=".15"/>')
+            out.append(f'<circle cx="{cx}" cy="{cy}" r="160" fill="url(#btn)"/>')
             out.append(icon(ic, cx, cy, 180, "#FFFFFF", 2.4))
             out.append(f'<text x="{x + 110}" y="{y + 700}" {FONT} font-weight="bold" font-size="200" fill="{LABEL}">{label}</text>')
             out.append(f'<text x="{x + 114}" y="{y + 865}" {FONT} font-size="84" fill="{LABEL2}">{sub}</text>')
         elif key == "chat":
             cx, cy = x + 240, y + h / 2
-            out.append(f'<circle cx="{cx}" cy="{cy}" r="130" fill="{tint}" fill-opacity=".28"/>')
+            out.append(f'<rect x="{cx - 130}" y="{cy - 130}" width="260" height="260" rx="84" fill="{tint}" fill-opacity=".22"/>')
             out.append(icon(ic, cx, cy, 140, LABEL))
             out.append(f'<text x="{x + 440}" y="{y + h / 2 - 5}" {FONT} font-weight="bold" font-size="136" fill="{LABEL}">{label}</text>')
             out.append(f'<text x="{x + 442}" y="{y + h / 2 + 115}" {FONT} font-size="82" fill="{LABEL2}">{sub}</text>')
         else:
             cx, cy = x + w / 2, y + h * .4
-            out.append(f'<circle cx="{cx}" cy="{cy}" r="105" fill="{tint}" fill-opacity=".28"/>')
+            out.append(f'<rect x="{cx - 105}" y="{cy - 105}" width="210" height="210" rx="68" fill="{tint}" fill-opacity=".22"/>')
             out.append(icon(ic, cx, cy, 120, LABEL))
             out.append(f'<text x="{cx}" y="{y + h - 85}" text-anchor="middle" {FONT} font-weight="bold" font-size="{90 if len(label) < 8 else 82}" fill="{LABEL}">{label}</text>')
     out += ["</g>", "</svg>"]

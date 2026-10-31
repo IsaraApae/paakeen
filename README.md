@@ -12,7 +12,7 @@ A LINE chatbot that records income and expenses, with a web app for summaries an
 ## In the LINE chat
 
 - **Type an entry:** "กาแฟ 60", "ข้าว 50 น้ำ 20" (several items in one message) or "เงินเดือน 30000". The bot sorts each item into one of your categories.
-- **Send a slip, voice note or PDF.** For a slip, ป้าคีน records the amount as cash, asks what it was, files it into a category based on that name, and shows the saved card.
+- **Send a slip, voice note or PDF.** For a slip, ป้าคีน records the amount as cash and shows the saved card. A slip paid to a shop or restaurant keeps that name; one paid to a person first asks what it was, then files it into a category based on your answer.
 - **Saved card:** each entry comes back as a card with แก้ไข (opens it in the web app) and ลบ. In settings you can switch to a short text reply instead.
 - **Category memory:** a name you've used before goes to the same category as last time.
 - **Payment channels (optional):** cash and credit cards. The bot asks which one only when it can't tell.
@@ -29,7 +29,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 |---|---|
 | สรุป | Income, expenses and what's left for the current period (starts on your chosen day of the month), spending by category, totals per payment channel, latest entries |
 | วิเคราะห์ | Six months of income and expense bars; daily bars for spending or income with the daily spending average; spending by category for any month or all time |
-| หมวดหมู่ | Add, rename, recolour and reorder categories; set the day each period starts |
+| หมวดหมู่ | Add, rename, recolour and reorder categories, and give each one an emoji; set the day each period starts |
 | รายการ | Every entry, filtered by type, period and category (only categories used in that period, biggest spend first); select several to recategorise or delete; export to Excel or CSV |
 | ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, theme (light, dark or match device), Thai or English, currency, time zone |
 

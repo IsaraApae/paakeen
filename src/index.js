@@ -161,7 +161,7 @@ const lineApi = (env, path, body, host = env.LINE_API || 'https://api.line.me') 
 
 // The tile menu under the chat. Each tile's position matches the artwork in public/menu.jpg (drawn from menu-source.svg).
 // 'add' and 'tab:*' tiles open the web app, the others are answered in the chat.
-const MENU_VERSION = 4;  // bump when the artwork or the tiles change, so every user's menu is rebuilt
+const MENU_VERSION = 5;  // bump when the artwork or the tiles change, so every user's menu is rebuilt
 const MENU_TILES = [[60, 60, 1380, 1000, 'add'], [1500, 60, 440, 470, 'tab:sum'], [2000, 60, 440, 470, 'tab:ana'], [1500, 590, 440, 470, 'tab:bud'],
   [2000, 590, 440, 470, 'tab:list'], [60, 1120, 1380, 506, 'sum'], [1500, 1120, 440, 506, 'tab:set'], [2000, 1120, 440, 506, 'help']];  // boxes from make-menu.py
 
@@ -294,7 +294,7 @@ async function record(env, u, parts) {
     const {meta} = await q(env, `${INSERT_ENTRY} VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       u.id, ts, kind, amount, cat?.id ?? null, note, chan?.id ?? null, memory).run();
     const colour = cat ? cat.color || (kind === 'income' ? INCOME_COLOUR : PAL[cats.filter(c => c.kind === 'expense').indexOf(cat) % PAL.length]) : '#A9A9B0';
-    saved.push({id: meta.last_row_id, ts, kind, amount, note, memory, colour, category: cat?.name ?? 'อื่นๆ', channel: chan?.name ?? '', party: e.party});
+    saved.push({id: meta.last_row_id, ts, kind, amount, note, memory, colour, category: cat?.name ?? 'อื่นๆ', emoji: cat?.emoji, channel: chan?.name ?? '', party: e.party});
   }
   return saved;
 }
@@ -305,47 +305,56 @@ const money = (s, n) => (n < 0 ? '-' : '') + s.currency + Math.abs(n).toLocaleSt
 const thaiDt = ts => `${+ts.slice(8, 10)} ${TH_MONTHS[ts.slice(5, 7) - 1]} ${+ts.slice(0, 4) + 543} ${ts.slice(11)}`;
 const textMsg = text => ({type: 'text', text});
 const T = (text, opts = {}) => ({type: 'text', text: text || '-', wrap: true, ...opts});
+const INK = '#17171A';
+const pill = (label, textColour, bg, action) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'xxl', backgroundColor: bg, paddingTop: '10px', paddingBottom: '10px', action,
+  contents: [{type: 'text', text: label, size: 'sm', weight: 'bold', color: textColour, align: 'center'}]});
+// white like the web app's cards; the buttons carry the same red gradient as its + button
 const bubble = (title, sub, body, actions) => ({
   type: 'bubble',
-  header: {type: 'box', layout: 'vertical', backgroundColor: '#FDECEA', contents: [T(title, {weight: 'bold', size: 'lg'}), T(sub, {size: 'xs', color: GREY})]},
-  body: {type: 'box', layout: 'vertical', spacing: 'sm', contents: body},
-  footer: {type: 'box', layout: 'horizontal', spacing: 'sm', contents: actions.map(action => ({type: 'button', style: 'secondary', height: 'sm', action}))},
+  body: {type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px', backgroundColor: '#FFFFFF', contents: [
+    {type: 'box', layout: 'vertical', contents: [T(title, {weight: 'bold', size: 'lg', color: INK}), T(sub, {size: 'xs', color: GREY})]},
+    ...body,
+  ]},
+  footer: {type: 'box', layout: 'horizontal', spacing: 'sm', paddingStart: '20px', paddingEnd: '20px', paddingBottom: '20px', paddingTop: '0px', contents: actions.map(action =>
+    ({...pill(action.label, '#FFFFFF', undefined, action), background: {type: 'linearGradient', angle: '135deg', startColor: '#E55E56', endColor: RED}}))},
 });
 const flex = (alt, bubbles) => ({type: 'flex', altText: alt.slice(0, 400), contents: bubbles.length === 1 ? bubbles[0] : {type: 'carousel', contents: bubbles.slice(0, 12)}});
 
 // same as public/index.html: expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
 const PAL = ['#E58C84', '#E8AC72', '#DDC46A', '#7FC4BD', '#86B2DE', '#9F9DDA', '#C3A0D8', '#E39AB4', '#BBA38C', '#92C1D1', '#A9A9B0'];
 const INCOME_COLOUR = '#35805A';  // income categories use the same green as รายรับ in สรุป
+// same as public/index.html: the built-in categories' emoji; a category's own choice wins
+const CAT_EMOJI = {'อาหาร': '🍜', 'เครื่องดื่ม': '🧋', 'ขนมหวาน': '🍰', 'บันเทิง': '🎬', 'ชอปปิ้ง': '🛍️', 'เดินทาง': '🚗', 'ค่าน้ำค่าไฟ': '💡', 'เรียน': '📚', 'ของขวัญ': '🎁', 'อื่นๆ': '📦', 'เงินเดือน': '💰'};
+const catEmoji = (name, own) => own || CAT_EMOJI[name] || '';
+// a category's badge, as in the web app: a tinted rounded square with its emoji, or its colour when it has none
+const badge = (colour, emoji, size) => ({type: 'box', layout: 'vertical', flex: 0, width: size, height: size, cornerRadius: '10px', backgroundColor: colour + '33', justifyContent: 'center', alignItems: 'center',
+  contents: [emoji ? {type: 'text', text: emoji, size: 'md', flex: 0, align: 'center'} : {type: 'box', layout: 'vertical', width: '10px', height: '10px', cornerRadius: '5px', backgroundColor: colour, contents: []}]});
 
-// The "saved" card, styled like the web app: soft tinted background, white capsules, the category's own colour.
+// The "saved" card, styled like the web app: a white card, the category's badge, a big amount and two capsules.
 function savedCard(s, e, editUrl) {
-  const out = e.kind === 'expense', colour = out ? RED : GREEN, ink = '#1C1C1E';
-  const pill = (label, textColour, bg, action) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'xxl', backgroundColor: bg,
-    borderWidth: '1px', borderColor: '#FFFFFFCC', paddingTop: '10px', paddingBottom: '10px', action,
-    contents: [{type: 'text', text: label, size: 'sm', weight: 'bold', color: textColour, align: 'center'}]});
+  const out = e.kind === 'expense', colour = out ? RED : GREEN;
   const details = [e.category, e.channel, e.memory ? 'จำจากครั้งก่อน' : ''].filter(Boolean).join(' · ');
   return {
     type: 'bubble', size: 'kilo',
-    styles: {body: {backgroundColor: '#F7F5F9'}},  // side-by-side cards are stretched to the tallest; keep the stretch off-white
-    body: {type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
-      background: {type: 'linearGradient', angle: '160deg', startColor: out ? '#FBE6E3' : '#E4F1E7', endColor: '#F7F5F9'},
+    styles: {body: {backgroundColor: '#FFFFFF'}},
+    body: {type: 'box', layout: 'vertical', spacing: 'lg', paddingAll: '20px',
       contents: [
         {type: 'box', layout: 'horizontal', alignItems: 'center', contents: [
-          {type: 'box', layout: 'vertical', flex: 0, cornerRadius: 'xxl', backgroundColor: '#FFFFFFCC', paddingStart: '10px', paddingEnd: '10px', paddingTop: '4px', paddingBottom: '4px',
+          {type: 'box', layout: 'vertical', flex: 0, cornerRadius: 'xxl', backgroundColor: out ? '#FBE9E7' : '#E6F3EA', paddingStart: '10px', paddingEnd: '10px', paddingTop: '4px', paddingBottom: '4px',
             contents: [{type: 'text', text: out ? '✓ จดรายจ่ายแล้ว' : '✓ จดรายรับแล้ว', size: 'xxs', weight: 'bold', color: colour}]},
           T(thaiDt(e.ts), {size: 'xxs', color: GREY, align: 'end'}),
         ]},
-        {type: 'box', layout: 'vertical', spacing: 'xs', contents: [
-          T(e.note || e.category, {size: 'lg', weight: 'bold', color: ink}),
-          {type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center', contents: [
-            {type: 'box', layout: 'vertical', width: '10px', height: '10px', cornerRadius: '5px', backgroundColor: e.colour || '#A9A9B0', contents: []},
-            T(details, {size: 'xs', color: GREY, flex: 1}),
+        {type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', contents: [
+          badge(e.colour || '#A9A9B0', catEmoji(e.category, e.emoji), '40px'),
+          {type: 'box', layout: 'vertical', flex: 1, contents: [
+            T(e.note || e.category, {size: 'md', weight: 'bold', color: INK}),
+            T(details, {size: 'xs', color: GREY}),
           ]},
         ]},
         T(`${out ? '-' : '+'}${money(s, e.amount)}`, {size: '3xl', weight: 'bold', color: colour}),
-        {type: 'box', layout: 'horizontal', spacing: 'sm', margin: 'md', contents: [
-          pill('แก้ไข', ink, '#FFFFFFD9', {type: 'uri', label: 'แก้ไข', uri: editUrl}),
-          pill('ลบ', RED, '#F6DCD9', {type: 'postback', label: 'ลบ', data: `del:${e.id}`, displayText: 'ลบรายการนี้'}),
+        {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [
+          pill('แก้ไข', INK, '#F1F1F3', {type: 'uri', label: 'แก้ไข', uri: editUrl}),
+          pill('ลบ', RED, '#FBE9E7', {type: 'postback', label: 'ลบ', data: `del:${e.id}`, displayText: 'ลบรายการนี้'}),
         ]},
       ]},
   };
@@ -378,11 +387,27 @@ async function summaryMsg(env, origin, u) {
     LEFT JOIN categories c ON c.id = e.category_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start);
   const total = kind => rows.filter(r => r.kind === kind).reduce((a, r) => a + r.total, 0);
   const left = total('income') - total('expense');
+  const cats = await all(env, "SELECT name, color, emoji FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id);
+  const stat = (label, n, colour) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'lg', backgroundColor: '#F1F1F3', paddingAll: '10px',
+    contents: [T(label, {size: 'xs', color: GREY}), T(money(s, n), {size: 'md', weight: 'bold', color: colour})]});
+  const catRow = r => {  // as in สรุป: the badge, the name, its share, its amount, then a bar for that share
+    const i = cats.findIndex(c => c.name === r.name), colour = cats[i]?.color || (i >= 0 ? PAL[i % PAL.length] : '#A9A9B0'), share = r.total / (total('expense') || 1) * 100;
+    return {type: 'box', layout: 'vertical', spacing: 'sm', margin: 'lg', contents: [
+      {type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center', contents: [
+        badge(colour, catEmoji(r.name, cats[i]?.emoji), '30px'),
+        T(r.name, {size: 'sm', color: INK, flex: 1}),
+        T(`${Math.round(share)}%`, {size: 'xs', color: GREY, flex: 0, wrap: false}),
+        T(money(s, r.total), {size: 'sm', weight: 'bold', color: INK, flex: 0, wrap: false}),
+      ]},
+      {type: 'box', layout: 'vertical', height: '5px', cornerRadius: '3px', backgroundColor: colour + '2E', contents: [
+        {type: 'box', layout: 'vertical', height: '5px', width: `${Math.max(1, Math.round(share))}%`, cornerRadius: '3px', backgroundColor: colour, contents: []},
+      ]},
+    ]};
+  };
   const body = [
-    T(`รายรับ ${money(s, total('income'))}`, {color: GREEN}),
-    T(`รายจ่าย ${money(s, total('expense'))}`, {color: RED}),
-    T(`เหลือเก็บ ${money(s, left)}`, {weight: 'bold'}),
-    ...rows.filter(r => r.kind === 'expense').slice(0, 10).map(r => T(`• ${r.name} ${money(s, r.total)}`, {size: 'sm', color: GREY})),
+    {type: 'box', layout: 'vertical', contents: [T('เหลือเก็บ', {size: 'xs', color: GREY}), T(money(s, left), {size: 'xxl', weight: 'bold', color: INK})]},
+    {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [stat('รายรับ', total('income'), GREEN), stat('รายจ่าย', total('expense'), RED)]},
+    ...rows.filter(r => r.kind === 'expense').slice(0, 10).map(catRow),
   ];
   return flex(`สรุปรอบนี้ เหลือเก็บ ${money(s, left)}`, [bubble('สรุปรอบนี้', `ตั้งแต่ ${+start.slice(8)} ${TH_MONTHS[start.slice(5, 7) - 1]}`, body,
     [{type: 'uri', label: 'เปิดแอป', uri: await appUrl(env, origin, u.id)}])]);
@@ -398,7 +423,7 @@ const skipButton = ids => skip(`chskip:${ids}`);
 
 // The saved card for one entry as it is now in the database.
 async function entryCard(env, origin, u, id) {
-  const e = await q(env, `SELECT e.*, c.name AS category, c.color, c.kind AS ckind, ch.name AS channel FROM entries e
+  const e = await q(env, `SELECT e.*, c.name AS category, c.color, c.emoji, c.kind AS ckind, ch.name AS channel FROM entries e
     LEFT JOIN categories c ON c.id = e.category_id LEFT JOIN channels ch ON ch.id = e.channel_id WHERE e.id = ? AND e.user_id = ?`, id, u.id).first();
   if (!e) return textMsg('ไม่พบรายการนี้แล้วจ้ะ');
   const expenseCats = await all(env, "SELECT id FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id);
