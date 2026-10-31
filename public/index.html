@@ -129,10 +129,11 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .subrow { min-height: 40px; padding: 6px 20px 6px 44px; font-size: 15px; color: var(--label2); }
 .chev { color: var(--label2); opacity: .55; width: 16px; height: 16px; }
 /* category badge: a tinted rounded square with the category's colour in the middle */
-.dot { width: 36px; height: 36px; border-radius: 12px; flex: none; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 20%, transparent); }
-.dot::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.dot { width: 36px; height: 36px; border-radius: 12px; flex: none; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 20%, transparent); font: normal 20px/1 -apple-system, system-ui, sans-serif; }
+.dot:empty::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
 .pick .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .pick .dot::after { display: none; }
+.pick .dot:not(:empty) { width: auto; height: auto; border-radius: 0; background: none; font-size: 16px; }
 .cat { flex-wrap: wrap; row-gap: 8px; }
 .bar { flex: 0 0 100%; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--c) 18%, transparent); overflow: hidden; }
 .bar::after { content: ""; display: block; width: var(--p); height: 100%; border-radius: 3px; background: var(--c); }
@@ -316,13 +317,13 @@ let tint;
 const topTint = () => {
   const r = document.documentElement, c = getComputedStyle(r).getPropertyValue('--top-solid').trim();
   if (c === tint) return;
-  const first = tint === undefined, own = $('meta[name=theme-color]:not([media])');
+  const own = $('meta[name=theme-color]:not([media])');
   tint = c;
   if (r.dataset.theme && r.dataset.theme !== (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) {
     if (own) own.content = c;
     else $('meta[name=theme-color]').before(Object.assign(document.createElement('meta'), {name: 'theme-color', content: c}));  // the first matching tag wins
   } else own?.remove();
-  if (!first) setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
+  setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
 };
 try { applyTheme(localStorage.getItem('theme')); } catch {}
 const ui = {sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
@@ -367,7 +368,7 @@ const EN = {
   'ป้าจะทักมาเตือนตามเวลานี้ ถ้าวันนั้นยังไม่ได้จดอะไร': 'A nudge at this time on days with nothing logged.',
   'ทั่วไป': 'General', 'ภาษา': 'Language', 'สกุลเงิน': 'Currency', 'โซนเวลา': 'Time zone',
   'ลบรายการทั้งหมด': 'Delete all entries', 'ลบ': 'Delete', 'ยกเลิก': 'Cancel', 'บันทึก': 'Save', 'จำนวนเงิน': 'Amount', 'วันเวลา': 'Date & time',
-  'แก้ไขรายการ': 'Edit entry', 'เพิ่มรายการ': 'Add entry', 'ชื่อหมวด': 'Name', 'แก้ไขหมวด': 'Edit category',
+  'อีโมจิ': 'Emoji', 'แก้ไขรายการ': 'Edit entry', 'เพิ่มรายการ': 'Add entry', 'ชื่อหมวด': 'Name', 'แก้ไขหมวด': 'Edit category',
   'ความถี่': 'Repeats', 'ทุกวัน': 'Daily', 'ทุกสัปดาห์': 'Weekly', 'ทุกเดือน': 'Monthly', 'เริ่มวันที่': 'Starts on',
   'ชื่อช่องทาง': 'Name', 'วันที่ (1-31)': 'Day (1-31)', 'กำลังโหลด…': 'Loading…',
   'ลบรายการทั้งหมดจริงหรือ? กู้คืนไม่ได้นะ': 'Delete every entry? This cannot be undone.',
@@ -385,6 +386,13 @@ const money = n => (n < 0 ? '-' : '') + S.settings.currency + Math.abs(n).toLoca
 const signed = (n, kind) => (kind === 'expense' ? '-' : '+') + money(n);
 const cat = id => S.categories.find(c => c.id === id);
 const catName = e => cat(e.category_id)?.name ?? L('ไม่มีหมวด', 'Uncategorised');
+// the built-in categories' emoji; shown by each device's own emoji font (Apple's on an iPhone or Mac). A category's own choice wins
+const CAT_EMOJI = {'อาหาร': '🍜', 'เครื่องดื่ม': '🧋', 'ขนมหวาน': '🍰', 'บันเทิง': '🎬', 'ชอปปิ้ง': '🛍️', 'เดินทาง': '🚗', 'ค่าน้ำค่าไฟ': '💡', 'เรียน': '📚', 'ของขวัญ': '🎁', 'อื่นๆ': '📦', 'เงินเดือน': '💰'};
+const catEmoji = id => { const c = cat(id); return c ? c.emoji || CAT_EMOJI[c.name] || '' : ''; };
+const dot = (colour, emoji) => `<i class="dot" style="--c:${colour}">${esc(emoji)}</i>`;
+const catDot = id => dot(catColor(id), catEmoji(id));
+// only the first emoji typed counts; anything else means no emoji of its own
+const firstEmoji = v => { const g = [...new Intl.Segmenter().segment(v.trim())][0]?.segment || ''; return /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(g) ? g : ''; };
 const catColor = id => { const c = cat(id); return c ? c.color || (c.kind === 'income' ? INCOME_COLOUR : PAL[S.categories.filter(x => x.kind === 'expense').indexOf(c) % PAL.length]) : '#A9A9B0'; };
 const between = (from, to) => S.entries.filter(e => e.ts.slice(0, 10) >= from && e.ts.slice(0, 10) <= to);
 const total = (list, kind) => list.reduce((a, e) => a + (e.kind === kind ? e.amount : 0), 0);
@@ -430,11 +438,11 @@ function range() {  // the entries tab's current date range
   const f = ui.f, t = today();
   return f.mode === 'month' ? cycle(f.off) : f.mode === 'custom' ? {from: f.from, to: f.to} : {from: addD(t, 1 - f.mode), to: t};
 }
-function catRows(list) {  // [name, total, colour] for every expense category, biggest spend first; id 0 = category was deleted
+function catRows(list) {  // [name, total, colour, emoji] for every expense category, biggest spend first; id 0 = category was deleted
   const m = new Map();
   for (const e of list) if (e.kind === 'expense') { const k = cat(e.category_id) ? e.category_id : 0; m.set(k, (m.get(k) || 0) + e.amount); }
-  return S.categories.filter(c => c.kind === 'expense').map(c => [c.name, m.get(c.id) || 0, catColor(c.id)])
-    .concat(m.get(0) ? [[L('ไม่มีหมวด', 'Uncategorised'), m.get(0), '#A9A9B0']] : []).sort((a, b) => b[1] - a[1]);
+  return S.categories.filter(c => c.kind === 'expense').map(c => [c.name, m.get(c.id) || 0, catColor(c.id), catEmoji(c.id)])
+    .concat(m.get(0) ? [[L('ไม่มีหมวด', 'Uncategorised'), m.get(0), '#A9A9B0', '']] : []).sort((a, b) => b[1] - a[1]);
 }
 function channelRows(list) {  // spending per payment channel
   const by = new Map();
@@ -495,11 +503,11 @@ const stepper = (label, prev, next, last) => `<div class="stepper"><button class
   <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="next">${I.chevR}</button></div>`;
 const pct = (n, sum) => { const p = n / (sum || 1) * 100; return (p && p < .5 ? '<1' : p.toFixed(0)) + '%'; };  // a small spend shows as <1%, not 0%
 const catList = rows => { const sum = rows.reduce((a, r) => a + r[1], 0); return rows.map(r =>
-  `<div class="row cat"><i class="dot" style="--c:${r[2]}"></i><span class="grow">${esc(r[0])}</span><span class="sub num">${pct(r[1], sum)}</span><b class="num">${money(r[1])}</b><i class="bar" style="--c:${r[2]};--p:${r[1] / (sum || 1) * 100}%"></i></div>`).join(''); };
+  `<div class="row cat">${dot(r[2], r[3])}<span class="grow">${esc(r[0])}</span><span class="sub num">${pct(r[1], sum)}</span><b class="num">${money(r[1])}</b><i class="bar" style="--c:${r[2]};--p:${r[1] / (sum || 1) * 100}%"></i></div>`).join(''); };
 const row = e => {
   const ch = S.channels.find(c => c.id === e.channel_id);
   return `<div class="row tap" onclick="tapEntry(${e.id})">
-    ${ui.sel ? `<span class="check ${ui.sel.has(e.id) ? 'on' : ''}">${I.check}</span>` : `<i class="dot" style="--c:${catColor(e.category_id)}"></i>`}
+    ${ui.sel ? `<span class="check ${ui.sel.has(e.id) ? 'on' : ''}">${I.check}</span>` : `${catDot(e.category_id)}`}
     <div class="grow"><div>${esc(e.note || catName(e))}</div><div class="sub">${e.ts.slice(11)} · ${esc(catName(e))}${ch ? ' · ' + esc(ch.name) : ''} ${e.memory ? I.bulb.replace('<svg', '<svg class="inline-icon"') : ''}</div></div>
     <div class="num amt ${e.kind}">${signed(e.amount, e.kind)}</div></div>`;
 };
@@ -616,8 +624,8 @@ function ask(heading, fields, {del, ok = 'บันทึก', hint, cta, sub} =
     f.type === 'amount' ? `<label class="amount"><span>${esc(S.settings.currency)}</span><input name="${f.k}" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0" required aria-label="${tr('จำนวนเงิน')}"
       value="${esc(f.value)}" ${f.value === '' ? 'autofocus' : ''} style="width:${Math.max(1, String(f.value).length) + .5}ch" oninput="this.style.width = Math.max(1, this.value.length) + .5 + 'ch'"></label>`
     : f.type === 'seg' ? `<div class="seg">${f.options.map(([v, l]) => `<label><input type="radio" name="${f.k}" value="${v}" ${v === f.value ? 'checked' : ''} ${f.js ? `onchange="${f.js}"` : ''}><span>${l}</span></label>`).join('')}</div>`
-    : f.type === 'chips' ? `<div class="sect ${f.cls || ''}"><span>${f.label}</span></div><div class="picks ${f.cls || ''}">${f.options.map(([v, l, colour, cls]) =>
-      `<label class="pick ${cls || ''}"><input type="radio" name="${f.k}" value="${esc(v)}" ${String(v) === String(f.value ?? '') ? 'checked' : ''}>${colour ? `<i class="dot" style="--c:${colour}"></i>` : ''}<span>${esc(l)}</span></label>`).join('')}</div>`
+    : f.type === 'chips' ? `<div class="sect ${f.cls || ''}"><span>${f.label}</span></div><div class="picks ${f.cls || ''}">${f.options.map(([v, l, colour, cls, emoji]) =>
+      `<label class="pick ${cls || ''}"><input type="radio" name="${f.k}" value="${esc(v)}" ${String(v) === String(f.value ?? '') ? 'checked' : ''}>${colour ? dot(colour, emoji) : ''}<span>${esc(l)}</span></label>`).join('')}</div>`
     : f.type === 'checks' ? `<div class="sect"><span>${f.label}</span></div><div class="picks">${f.options.map(([v, l]) =>
       `<label class="pick"><input type="checkbox" name="${f.k}_${v}" checked><span>${l}</span></label>`).join('')}</div>`
     : f.type === 'range' ? `<div class="group ${f.cls || ''}"><button type="button" class="row tap" onclick="rangeField(this)"><span class="grow">${f.label}</span>
@@ -674,7 +682,7 @@ const KINDS = [['expense', 'รายจ่าย'], ['income', 'รายรั
 // switching kind swaps the visible categories (CSS) and selects the first one of that kind
 const kindField = kind => ({k: 'kind', type: 'seg', options: KINDS, value: kind, js: "(this.form.querySelector('.k-' + this.value + ' input') || {}).checked = true"});
 const catField = value => ({k: 'category_id', type: 'chips', label: 'หมวด', value,
-  options: S.categories.map(c => [c.id, c.name, catColor(c.id), 'k-' + c.kind])});
+  options: S.categories.map(c => [c.id, c.name, catColor(c.id), 'k-' + c.kind, catEmoji(c.id)])});
 const entryFields = e => [
   {k: 'amount', type: 'amount', value: e.amount},
   kindField(e.kind),
@@ -751,10 +759,10 @@ async function addRecurring() {
 async function editCat(id) {
   const c = cat(id) || {kind: ui.kind, name: ''};
   const colour = id ? catColor(id) : c.kind === 'income' ? INCOME_COLOUR : PAL[S.categories.filter(x => x.kind === c.kind).length % PAL.length];
-  const r = await ask(id ? 'แก้ไขหมวด' : 'เพิ่มหมวด', [{k: 'name', label: 'ชื่อหมวด', value: c.name, req: 1}, {k: 'color', type: 'swatch', label: 'สี', value: colour, options: c.kind === 'income' ? INCOME_PAL : PAL}], {del: !!id});
+  const r = await ask(id ? 'แก้ไขหมวด' : 'เพิ่มหมวด', [{k: 'name', label: 'ชื่อหมวด', value: c.name, req: 1}, {k: 'emoji', label: 'อีโมจิ', value: id ? catEmoji(id) : ''}, {k: 'color', type: 'swatch', label: 'สี', value: colour, options: c.kind === 'income' ? INCOME_PAL : PAL}], {del: !!id});
   if (!r) return;
   if (r === 'del') await api('DELETE', 'categories/' + id);
-  else await api(id ? 'PUT' : 'POST', id ? 'categories/' + id : 'categories', {kind: c.kind, name: r.name, color: r.color || colour, sort: id ? c.sort : S.categories.length});
+  else await api(id ? 'PUT' : 'POST', id ? 'categories/' + id : 'categories', {kind: c.kind, name: r.name, emoji: firstEmoji(r.emoji), color: r.color || colour, sort: id ? c.sort : S.categories.length});
   load();
 }
 // Drag a category row by its grip; the new order is saved when the finger lifts.
@@ -814,7 +822,7 @@ async function exportCsv() {
   const periods = {c0, c1: cycle(-1), c3: {from: cycle(-2).from, to: c0.to}, year: {from: year + '-01-01', to: year + '-12-31'}, all: {from: '0000', to: '9999'}};
   const viewing = view.from === c0.from && view.to === c0.to ? 'c0' : 'custom';  // start from what the entries tab shows
   const r = await ask('ส่งออกรายการ', [
-    {k: 'cat', type: 'chips', label: 'หมวดหมู่', value: '', options: [['', L('ทุกหมวดหมู่', 'All categories')], ...S.categories.map(c => [c.id, c.name, catColor(c.id)])]},
+    {k: 'cat', type: 'chips', label: 'หมวดหมู่', value: '', options: [['', L('ทุกหมวดหมู่', 'All categories')], ...S.categories.map(c => [c.id, c.name, catColor(c.id), '', catEmoji(c.id)])]},
     {k: 'period', type: 'chips', label: 'ช่วงเวลา', value: viewing, options: [['c0', cycleLabel(c0)], ['c1', cycleLabel(periods.c1)], ['c3', L('3 เดือนล่าสุด', 'Last 3 months')],
       ['year', L('ปีนี้', 'This year')], ['all', L('ทั้งหมด', 'All time')], ['custom', L('กำหนดเอง', 'Custom')]]},
     {k: 'range', type: 'range', label: 'ช่วงวันที่', value: view, cls: 'only-custom'},
@@ -925,9 +933,9 @@ const VIEWS = {
     ${seg([['expense', 'รายจ่าย'], ['income', 'รายรับ']], ui.kind, v => `U({kind: '${v}'})`)}
     <div class="group">
       ${cats.map(c => ui.sort
-        ? `<div class="row" data-id="${c.id}"><i class="dot" style="--c:${catColor(c.id)}"></i><span class="grow">${esc(c.name)}</span>
+        ? `<div class="row" data-id="${c.id}">${catDot(c.id)}<span class="grow">${esc(c.name)}</span>
             <button class="grip" onpointerdown="drag(event, this)" onkeydown="event.key === 'ArrowUp' ? move(${c.id}, -1) : event.key === 'ArrowDown' && move(${c.id}, 1)" aria-label="${L('ลากเพื่อจัดเรียง', 'Drag to reorder')}">${I.grip}</button></div>`
-        : `<button class="row tap" onclick="editCat(${c.id})"><i class="dot" style="--c:${catColor(c.id)}"></i><span class="grow">${esc(c.name)}</span>${CHEV}</button>`).join('')}
+        : `<button class="row tap" onclick="editCat(${c.id})">${catDot(c.id)}<span class="grow">${esc(c.name)}</span>${CHEV}</button>`).join('')}
       <button class="row tap link" onclick="editCat()">${I.plus}<span>เพิ่มหมวด</span></button>
     </div>
     ${ui.sort ? '<p class="foot">ลากที่ขีดสามขีดด้านขวาเพื่อจัดเรียง</p>' : ''}

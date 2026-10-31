@@ -51,6 +51,7 @@ let ready;  // schema is applied once per isolate
 const init = env => ready ??= env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
   // ponytail: one-column migration retried per isolate; move to D1 migrations if the schema keeps changing
   .then(() => env.DB.prepare('ALTER TABLE categories ADD COLUMN color TEXT').run().catch(() => {}))
+  .then(() => env.DB.prepare('ALTER TABLE categories ADD COLUMN emoji TEXT').run().catch(() => {}))
   // adding channels.type succeeds exactly once; that is when existing users get cash and the two default cards
   .then(() => env.DB.prepare('ALTER TABLE channels ADD COLUMN type TEXT').run().then(() => env.DB.batch([
     "UPDATE channels SET type = 'cash' WHERE name = 'เงินสด'",
@@ -598,12 +599,13 @@ const vTz = v => { try { new Intl.DateTimeFormat('en-US', {timeZone: v}); } catc
 const vRemind = v => { need(v === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(v)); return v; };
 
 const vColor = v => { need(typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)); return v; };
+const vEmoji = v => { need(typeof v === 'string' && v.length <= 16 && /^[\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Modifier}\u200d\ufe0f]*$/u.test(v)); return v; };
 const vKind = vChoice('expense', 'income');
 const ENTRY = {kind: vKind, amount: vAmount, category_id: vId, note: vNote, channel_id: vId};
 // table -> [writable columns and their validators, columns required on insert]
 const TABLES = {
   entries: [{...ENTRY, ts: vTs}, ['ts', 'kind', 'amount']],
-  categories: [{kind: vKind, name: vName, sort: vInt, color: vColor}, ['kind', 'name']],
+  categories: [{kind: vKind, name: vName, sort: vInt, color: vColor, emoji: vEmoji}, ['kind', 'name']],
   channels: [{name: vName, type: vChoice('cash', 'card', 'other')}, ['name']],
   recurring: [{...ENTRY, freq: vChoice('daily', 'weekly', 'monthly'), start: vStart}, ['kind', 'amount', 'freq', 'start']],
 };

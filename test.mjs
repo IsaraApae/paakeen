@@ -136,6 +136,9 @@ try {
   assert.equal(await api(t1, 'POST', 'users', {id: 'x'}), 400);
   assert.equal(await api(t1, 'PUT', `categories/${dessert}`, {color: 'red"><script>'}), 400);
   assert.deepEqual(await api(t1, 'PUT', `categories/${dessert}`, {color: '#E58C84'}), {});
+  assert.equal(await api(t1, 'PUT', `categories/${dessert}`, {emoji: '<b>'}), 400);
+  assert.deepEqual(await api(t1, 'PUT', `categories/${dessert}`, {emoji: '🍰'}), {});
+  assert.equal((await api(t1, 'GET', 'state')).categories.find(c => c.id === dessert).emoji, '🍰');
   assert.equal((await api(t1, 'GET', 'state')).categories.find(c => c.id === dessert).color, '#E58C84');
   assert.equal(await api(t1, 'PUT', 'entries/1;DROP', {amount: 1}), 400);
   await api(t2, 'DELETE', `entries/${coffee.id}`);
