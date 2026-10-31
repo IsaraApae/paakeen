@@ -1,61 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2500" height="2500" viewBox="0 0 2500 2500">
 <defs>
-  <radialGradient id="w1" cx="8%" cy="0%" r="75%"><stop offset="0" stop-color="#FF3B30" stop-opacity=".26"/><stop offset="1" stop-color="#FF3B30" stop-opacity="0"/></radialGradient>
-  <radialGradient id="w2" cx="100%" cy="12%" r="65%"><stop offset="0" stop-color="#FF9F0A" stop-opacity=".22"/><stop offset="1" stop-color="#FF9F0A" stop-opacity="0"/></radialGradient>
-  <radialGradient id="w3" cx="0%" cy="70%" r="60%"><stop offset="0" stop-color="#AF52DE" stop-opacity=".14"/><stop offset="1" stop-color="#AF52DE" stop-opacity="0"/></radialGradient>
-  <radialGradient id="w4" cx="72%" cy="100%" r="75%"><stop offset="0" stop-color="#FF2D55" stop-opacity=".2"/><stop offset="1" stop-color="#FF2D55" stop-opacity="0"/></radialGradient>
-  <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/><stop offset=".5" stop-color="#FFFFFF" stop-opacity=".25"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".6"/></linearGradient>
-  <linearGradient id="btn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D2564F"/><stop offset="1" stop-color="#BB443E"/></linearGradient>
-  <filter id="lift" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="22" stdDeviation="30" flood-color="#000" flood-opacity=".10"/><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity=".05"/></filter>
+  <linearGradient id="btn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF6961"/><stop offset="1" stop-color="#C24A44"/></linearGradient>
+  <filter id="lift" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="20" stdDeviation="28" flood-color="#000" flood-opacity=".08"/><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".04"/></filter>
 </defs>
-<rect width="2500" height="2500" fill="#F5F3F7"/>
+<rect width="2500" height="2500" fill="#F5F5F7"/>
 <g transform="translate(0 407)">
-<rect width="2500" height="1686" fill="url(#w1)"/>
-<rect width="2500" height="1686" fill="url(#w2)"/>
-<rect width="2500" height="1686" fill="url(#w3)"/>
-<rect width="2500" height="1686" fill="url(#w4)"/>
-<rect x="60" y="60" width="1380" height="1000" rx="150" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="62" y="62" width="1376" height="996" rx="148" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="330" cy="340" r="160" fill="url(#btn)" filter="url(#lift)"/>
-<circle cx="330" cy="340" r="156" fill="none" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="5"/>
+<rect x="60" y="60" width="1380" height="1000" rx="120" fill="#FFFFFF" filter="url(#lift)"/>
+<circle cx="330" cy="340" r="192" fill="#FF6961" fill-opacity=".15"/>
+<circle cx="330" cy="340" r="160" fill="url(#btn)"/>
 <g transform="translate(240.0 250.0) scale(7.5)" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></g>
-<text x="170" y="760" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="200" fill="#1C1C1E">จดรายการ</text>
-<text x="174" y="925" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-size="84" fill="#636366">พิมพ์ ส่งสลิป หรือส่งเสียงในแชตก็ได้</text>
-<rect x="1500" y="60" width="440" height="470" rx="120" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="1502" y="62" width="436" height="466" rx="118" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="1720.0" cy="248.0" r="105" fill="#E58C84" fill-opacity=".28"/>
-<g transform="translate(1660.0 188.0) scale(5.0)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></g>
-<text x="1720.0" y="445" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#1C1C1E">สรุป</text>
-<rect x="2000" y="60" width="440" height="470" rx="120" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="2002" y="62" width="436" height="466" rx="118" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="2220.0" cy="248.0" r="105" fill="#86B2DE" fill-opacity=".28"/>
-<g transform="translate(2160.0 188.0) scale(5.0)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20v-6M12 20V4M18 20v-9"/></g>
-<text x="2220.0" y="445" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="82" fill="#1C1C1E">วิเคราะห์</text>
-<rect x="1500" y="590" width="440" height="470" rx="120" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="1502" y="592" width="436" height="466" rx="118" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="1720.0" cy="778.0" r="105" fill="#E8AC72" fill-opacity=".28"/>
-<g transform="translate(1660.0 718.0) scale(5.0)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9v9zM15 3.5A9 9 0 0 1 20.5 9H15z"/></g>
-<text x="1720.0" y="975" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="82" fill="#1C1C1E">หมวดหมู่</text>
-<rect x="2000" y="590" width="440" height="470" rx="120" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="2002" y="592" width="436" height="466" rx="118" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="2220.0" cy="778.0" r="105" fill="#9F9DDA" fill-opacity=".28"/>
-<g transform="translate(2160.0 718.0) scale(5.0)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></g>
-<text x="2220.0" y="975" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#1C1C1E">รายการ</text>
-<rect x="60" y="1120" width="1380" height="506" rx="150" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="62" y="1122" width="1376" height="502" rx="148" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="300" cy="1373.0" r="130" fill="#93C79C" fill-opacity=".28"/>
-<g transform="translate(230.0 1303.0) scale(5.833333333333333)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H10l-6 4z"/></g>
-<text x="500" y="1368.0" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="136" fill="#1C1C1E">สรุปในแชต</text>
-<text x="502" y="1488.0" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-size="82" fill="#636366">ยอดรอบนี้ ตอบกลับทันที</text>
-<rect x="1500" y="1120" width="440" height="506" rx="120" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="1502" y="1122" width="436" height="502" rx="118" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="1720.0" cy="1322.4" r="105" fill="#A9A9B0" fill-opacity=".28"/>
-<g transform="translate(1660.0 1262.4) scale(5.0)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4M16 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM8 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM14 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></g>
-<text x="1720.0" y="1541" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#1C1C1E">ตั้งค่า</text>
-<rect x="2000" y="1120" width="440" height="506" rx="120" fill="#FFFFFF" fill-opacity=".8" filter="url(#lift)"/>
-<rect x="2002" y="1122" width="436" height="502" rx="118" fill="none" stroke="url(#shine)" stroke-width="5"/>
-<circle cx="2220.0" cy="1322.4" r="105" fill="#C3A0D8" fill-opacity=".28"/>
-<g transform="translate(2160.0 1262.4) scale(5.0)" fill="none" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></g>
-<text x="2220.0" y="1541" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#1C1C1E">วิธีใช้</text>
+<text x="170" y="760" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="200" fill="#17171A">จดรายการ</text>
+<text x="174" y="925" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-size="84" fill="#6B6B73">พิมพ์ ส่งสลิป หรือส่งเสียงในแชตก็ได้</text>
+<rect x="1500" y="60" width="440" height="470" rx="100" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="1615.0" y="143.0" width="210" height="210" rx="68" fill="#E58C84" fill-opacity=".22"/>
+<g transform="translate(1660.0 188.0) scale(5.0)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></g>
+<text x="1720.0" y="445" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#17171A">สรุป</text>
+<rect x="2000" y="60" width="440" height="470" rx="100" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="2115.0" y="143.0" width="210" height="210" rx="68" fill="#86B2DE" fill-opacity=".22"/>
+<g transform="translate(2160.0 188.0) scale(5.0)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20v-6M12 20V4M18 20v-9"/></g>
+<text x="2220.0" y="445" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="82" fill="#17171A">วิเคราะห์</text>
+<rect x="1500" y="590" width="440" height="470" rx="100" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="1615.0" y="673.0" width="210" height="210" rx="68" fill="#E8AC72" fill-opacity=".22"/>
+<g transform="translate(1660.0 718.0) scale(5.0)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9v9zM15 3.5A9 9 0 0 1 20.5 9H15z"/></g>
+<text x="1720.0" y="975" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="82" fill="#17171A">หมวดหมู่</text>
+<rect x="2000" y="590" width="440" height="470" rx="100" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="2115.0" y="673.0" width="210" height="210" rx="68" fill="#9F9DDA" fill-opacity=".22"/>
+<g transform="translate(2160.0 718.0) scale(5.0)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></g>
+<text x="2220.0" y="975" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#17171A">รายการ</text>
+<rect x="60" y="1120" width="1380" height="506" rx="120" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="170" y="1243.0" width="260" height="260" rx="84" fill="#93C79C" fill-opacity=".22"/>
+<g transform="translate(230.0 1303.0) scale(5.833333333333333)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H10l-6 4z"/></g>
+<text x="500" y="1368.0" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="136" fill="#17171A">สรุปในแชต</text>
+<text x="502" y="1488.0" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-size="82" fill="#6B6B73">ยอดรอบนี้ ตอบกลับทันที</text>
+<rect x="1500" y="1120" width="440" height="506" rx="100" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="1615.0" y="1217.4" width="210" height="210" rx="68" fill="#A9A9B0" fill-opacity=".22"/>
+<g transform="translate(1660.0 1262.4) scale(5.0)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4M16 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM8 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM14 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></g>
+<text x="1720.0" y="1541" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#17171A">ตั้งค่า</text>
+<rect x="2000" y="1120" width="440" height="506" rx="100" fill="#FFFFFF" filter="url(#lift)"/>
+<rect x="2115.0" y="1217.4" width="210" height="210" rx="68" fill="#C3A0D8" fill-opacity=".22"/>
+<g transform="translate(2160.0 1262.4) scale(5.0)" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></g>
+<text x="2220.0" y="1541" text-anchor="middle" font-family="'Sukhumvit Set', Thonburi, -apple-system, sans-serif" font-weight="bold" font-size="90" fill="#17171A">วิธีใช้</text>
 </g>
 </svg>

@@ -195,13 +195,16 @@ try {
   entries = [{kind: 'expense', amount: 120, category: 'อาหาร', note: 'ร้านส้มตำป้าแดง', party: 'business'}];
   const shop = (await hook({type: 'message', message: {type: 'image', id: '44'}}))[0];
   assert.equal(shop.type, 'flex');
-  assert.match(JSON.stringify(shop), /จดรายจ่ายแล้ว.*ร้านส้มตำป้าแดง.*อาหาร · เงินสด/);
+  assert.match(JSON.stringify(shop), /จดรายจ่ายแล้ว.*🍜.*ร้านส้มตำป้าแดง.*อาหาร · เงินสด/);
   assert.equal((await api(t1, 'GET', 'state')).settings.pending, null);
 
   // postbacks: delete is scoped to the owner; commands
   assert.equal((await hook({type: 'postback', postback: {data: `del:${coffee.id}`}}, 'u2'))[0].text, 'ไม่พบรายการนี้แล้วจ้ะ');
   assert.equal((await hook({type: 'postback', postback: {data: `del:${coffee.id}`}}))[0].text, 'ลบแล้วจ้ะ');
-  assert.equal((await say('สรุป'))[0].type, 'flex');
+  const summary = (await say('สรุป'))[0];
+  assert.equal(summary.type, 'flex');
+  assert.match(JSON.stringify(summary), /เหลือเก็บ.*รายรับ.*รายจ่าย.*🍜.*อาหาร/);
+  for (const c of JSON.stringify(summary).matchAll(/"(?:color|backgroundColor)":"([^"]*)"/g)) assert.match(c[1], /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);  // LINE refuses anything else
   entries = [];
   assert.match((await say('สวัสดี'))[0].text, /พิมพ์รายการได้เลย/);
 
