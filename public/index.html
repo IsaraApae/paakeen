@@ -716,7 +716,8 @@ document.getElementById('chartjs').addEventListener('load', () => S && render())
 function render() {
   applyTheme(S.settings.theme);
   charts.forEach(c => c.destroy()); charts = []; after = [];
-  if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep')}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  // no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
+  if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   document.body.classList.toggle('selecting', !!ui.sel);
   const chips = $('.chips'), was = chips && [chips.dataset.k, chips.scrollLeft];
@@ -744,9 +745,12 @@ async function editEntry(id) {
   const e = S.entries.find(x => x.id === id) || {ts: nowTs(), amount: '', note: '', kind: 'expense'};
   const r = await ask(id ? 'แก้ไขรายการ' : 'เพิ่มรายการ', [...entryFields(e), {k: 'ts', type: 'when', value: e.ts}], {del: !!id});
   if (!r) return;
-  if (r === 'del') await api('DELETE', 'entries/' + id);
-  else await api(id ? 'PUT' : 'POST', id ? 'entries/' + id : 'entries', {...entryBody(r), ts: r.ts});
-  load();
+  const body = r === 'del' ? null : {...entryBody(r), ts: r.ts};
+  // show the result straight away; load() then replaces it with the server's copy, or puts it back if saving failed
+  S.entries = S.entries.filter(x => x.id !== id);
+  if (body) S.entries = [{...e, memory: 0, ...body, id: id || 0}, ...S.entries].sort((a, b) => b.ts.localeCompare(a.ts) || b.id - a.id);
+  render();
+  await (body ? api(id ? 'PUT' : 'POST', id ? 'entries/' + id : 'entries', body) : api('DELETE', 'entries/' + id)).finally(load);
 }
 async function addRecurring() {
   const r = await ask('เพิ่มรายการจดประจำ', [...entryFields({amount: '', note: '', kind: 'expense'}),
@@ -806,7 +810,7 @@ async function addChannel(type) {
 const del = async path => { await api('DELETE', path); load(); };
 async function wipe() { if (await ask('ลบรายการทั้งหมดจริงหรือ? กู้คืนไม่ได้นะ', [], {ok: 'ลบ'})) del('entries'); }
 async function bulkDel() {
-  for (const id of ui.sel) await api('DELETE', 'entries/' + id);
+  await Promise.all([...ui.sel].map(id => api('DELETE', 'entries/' + id)));
   ui.sel = null; load();
 }
 async function bulkCat() {
