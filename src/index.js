@@ -47,8 +47,7 @@ const INSERT_ENTRY = 'INSERT INTO entries (user_id, ts, kind, amount, category_i
 
 // ---------- storage ----------
 
-let ready;  // schema is applied once per isolate
-const init = env => ready ??= env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
+const migrate = env => env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
   // ponytail: one-column migration retried per isolate; move to D1 migrations if the schema keeps changing
   .then(() => env.DB.prepare('ALTER TABLE categories ADD COLUMN color TEXT').run().catch(() => {}))
   .then(() => env.DB.prepare('ALTER TABLE categories ADD COLUMN emoji TEXT').run().catch(() => {}))
@@ -58,7 +57,11 @@ const init = env => ready ??= env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
     "INSERT INTO channels (user_id, name, type) SELECT id, 'เงินสด', 'cash' FROM users WHERE id NOT IN (SELECT user_id FROM channels WHERE type = 'cash')",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'KTC', 'card' FROM users",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'UOB', 'card' FROM users",
-  ].map(sql => env.DB.prepare(sql))), () => {}))
+  ].map(sql => env.DB.prepare(sql))), () => {}));
+// Each new isolate checks only that the newest column exists: with little traffic most requests land on a new isolate,
+// and running every migration first cost them about a second. After adding a migration, point this at its column.
+let ready;
+const init = env => ready ??= env.DB.prepare('SELECT emoji FROM categories LIMIT 0').run().catch(() => migrate(env))
   .catch(e => { ready = null; throw e; });
 const q = (env, sql, ...args) => env.DB.prepare(sql).bind(...args);
 const all = async (env, sql, ...args) => (await q(env, sql, ...args).all()).results;
@@ -105,9 +108,10 @@ function addMonths(s, k) {  // same day next month, clamped to the month's lengt
 const nthDue = (start, freq, k) => freq === 'monthly' ? addMonths(start, k) : addDays(start, k * (freq === 'weekly' ? 7 : 1));
 
 // Create any recurring entries that have come due. Runs lazily whenever the user shows up.
-async function applyRecurring(env, u) {
+// rows: the user's recurring rows if the caller already has them. Returns whether anything was added.
+async function applyRecurring(env, u, rows) {
   const today = localNow(settings(u)).slice(0, 10), stmts = [];
-  for (const r of await all(env, 'SELECT * FROM recurring WHERE user_id = ?', u.id)) {
+  for (const r of rows ?? await all(env, 'SELECT * FROM recurring WHERE user_id = ?', u.id)) {
     for (let k = r.count, due; (due = nthDue(r.start, r.freq, k)) <= today; k++) {
       // each occurrence is inserted only if the counter still says it is next, so two requests at once can't double it
       stmts.push(
@@ -117,6 +121,7 @@ async function applyRecurring(env, u) {
     }
   }
   if (stmts.length) await env.DB.batch(stmts);
+  return stmts.length > 0;
 }
 
 // ---------- LINE + Gemini ----------
@@ -266,8 +271,8 @@ function snap(note, text) {
 // Ask the model for entries, validate them, save them. Returns the saved entries.
 async function record(env, u, parts) {
   const s = settings(u), now = localNow(s);
-  const cats = await all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', u.id);
-  const chans = s.track_channel ? await all(env, 'SELECT * FROM channels WHERE user_id = ?', u.id) : [];
+  const [cats, chans] = await Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', u.id),
+    s.track_channel ? all(env, 'SELECT * FROM channels WHERE user_id = ?', u.id) : []]);
   const names = kind => cats.filter(c => c.kind === kind).map(c => c.name).join(', ');
   const system = 'Extract income/expense entries from the user\'s message, photo, voice note or PDF (Thai or English). '
     + 'One entry per item; amount is a positive number. `note` is a short label for the item or shop. '
@@ -645,11 +650,12 @@ async function api(env, u, method, path, body) {
   need(body && typeof body === 'object' && !Array.isArray(body));
   const uid = u.id;
   if (method === 'GET' && path.join('/') === 'state') {
-    await applyRecurring(env, u);
     const rows = (table, order = 'id') => q(env, `SELECT * FROM ${table} WHERE user_id = ? ORDER BY ${order}`, uid);
     // ponytail: ships every entry and the browser does the maths; paginate once a user passes ~20k rows
-    const [categories, channels, recurring, entries] = (await env.DB.batch(
+    const read = async () => (await env.DB.batch(
       [rows('categories', 'sort, id'), rows('channels'), rows('recurring'), rows('entries', 'ts DESC, id DESC')])).map(r => r.results);
+    let [categories, channels, recurring, entries] = await read();
+    if (await applyRecurring(env, u, recurring)) [categories, channels, recurring, entries] = await read();
     return {user: {name: u.name, picture: u.picture}, settings: settings(u), categories, channels, recurring, entries};
   }
   if (method === 'PUT' && path.join('/') === 'settings') {
