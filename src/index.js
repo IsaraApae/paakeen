@@ -58,8 +58,8 @@ const migrate = env => env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
     "INSERT INTO channels (user_id, name, type) SELECT id, 'KTC', 'card' FROM users",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'UOB', 'card' FROM users",
   ].map(sql => env.DB.prepare(sql))), () => {}));
-// Each new isolate checks only that the newest column exists: with little traffic most requests land on a new isolate,
-// and running every migration first cost them about a second. After adding a migration, point this at its column.
+// Each new isolate checks only that the newest column exists, one query instead of running every migration first.
+// With little traffic most requests land on a new isolate. After adding a migration, point this at its column.
 let ready;
 const init = env => ready ??= env.DB.prepare('SELECT emoji FROM categories LIMIT 0').run().catch(() => migrate(env))
   .catch(e => { ready = null; throw e; });
