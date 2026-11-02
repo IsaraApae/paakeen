@@ -27,6 +27,12 @@ const SCHEMA = [
     category_id INTEGER, note TEXT DEFAULT '', channel_id INTEGER, memory INTEGER DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS recurring (id INTEGER PRIMARY KEY, user_id TEXT, kind TEXT, amount REAL, category_id INTEGER,
     note TEXT DEFAULT '', channel_id INTEGER, freq TEXT, start TEXT, count INTEGER DEFAULT 0)`,
+  // every query is per user; without these each one reads every user's rows, which also counts against D1's free daily reads
+  'CREATE INDEX IF NOT EXISTS entries_user_ts ON entries (user_id, ts)',
+  'CREATE INDEX IF NOT EXISTS entries_user_note ON entries (user_id, kind, note COLLATE NOCASE)',
+  'CREATE INDEX IF NOT EXISTS categories_user ON categories (user_id, sort)',
+  'CREATE INDEX IF NOT EXISTS channels_user ON channels (user_id)',
+  'CREATE INDEX IF NOT EXISTS recurring_user ON recurring (user_id)',
 ];
 const ENTRY_SCHEMA = {
   type: 'OBJECT',
@@ -60,10 +66,10 @@ const migrate = env => env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
     "INSERT INTO channels (user_id, name, type) SELECT id, 'KTC', 'card' FROM users",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'UOB', 'card' FROM users",
   ].map(sql => env.DB.prepare(sql))), () => {}));
-// Each new isolate checks only that the newest column exists, one query instead of running every migration first.
-// With little traffic most requests land on a new isolate. After adding a migration, point this at its column.
+// Each new isolate checks only that the newest migration has run, one query instead of running every migration first.
+// With little traffic most requests land on a new isolate. After adding a migration, point this at its column or index.
 let ready;
-const init = env => ready ??= env.DB.prepare('SELECT emoji FROM categories LIMIT 0').run().catch(() => migrate(env))
+const init = env => ready ??= env.DB.prepare('SELECT 1 FROM recurring INDEXED BY recurring_user LIMIT 0').run().catch(() => migrate(env))
   .catch(e => { ready = null; throw e; });
 const q = (env, sql, ...args) => env.DB.prepare(sql).bind(...args);
 const all = async (env, sql, ...args) => (await q(env, sql, ...args).all()).results;
@@ -93,10 +99,13 @@ const D = s => new Date(s + 'T00:00:00Z'), iso = d => d.toISOString().slice(0, 1
 const validDate = s => { try { return typeof s === 'string' && iso(D(s)) === s; } catch { return false; } };
 const validTs = s => typeof s === 'string' && /^\d{4}-\d\d-\d\d ([01]\d|2[0-3]):[0-5]\d$/.test(s) && validDate(s.slice(0, 10));
 
+// building a formatter takes far longer than using one, and the cron job asks for every user, on the free plan's 10ms of CPU
+const clocks = new Map();
 function localNow(s) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+  if (!clocks.has(s.tz)) clocks.set(s.tz, new Intl.DateTimeFormat('en-US', {
     timeZone: s.tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  }));
+  const p = Object.fromEntries(clocks.get(s.tz).formatToParts(new Date()).map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 function addDays(s, n) { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); }
@@ -707,7 +716,7 @@ async function remind(env) {
     }
     if (!s.remind || now.slice(11) < s.remind || s.last_remind === today) continue;
     await q(env, 'UPDATE users SET settings = ? WHERE id = ?', JSON.stringify({...JSON.parse(u.settings), last_remind: today}), u.id).run();
-    if (!await q(env, 'SELECT 1 FROM entries WHERE user_id = ? AND ts LIKE ?', u.id, today + '%').first()) {
+    if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
     }
   }

@@ -11,6 +11,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">  <!-- iPhone browsers take the page icon from this -->
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
 <style>
 /* Solid white cards with soft shadows on a plain background; the red gradient is kept for the + button */
@@ -274,9 +275,8 @@ dialog .group { background: var(--surface); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pill.danger { color: var(--red); }
 .pill.wide { width: 100%; }
-.rep-top { display: flex; align-items: center; gap: 8px; }
-.rep-top .pad { flex: 1; min-width: 0; }
-.rep-top img { width: 104px; height: 104px; margin-right: 12px; flex: none; align-self: flex-end; }
+.rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
+.rep-title h1 { min-width: 0; }
 .says { margin: 0; padding: 16px 20px 16px 36px; display: grid; gap: 8px; font-size: 15px; }
 #toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--label); padding: 10px 18px; border-radius: 999px; font-size: 15px; display: none; z-index: 5; white-space: nowrap; }
 </style>
@@ -331,7 +331,6 @@ const topTint = () => {
   setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
 };
 try { applyTheme(localStorage.getItem('theme')); } catch {}
-const CHAR_VERSION = 1;  // the same as src/index.js
 const ui = {repOff: 0, sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
             f: {mode: 'month', off: 0, from: '', to: '', kind: 'all', cat: null}};
 // expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
@@ -902,13 +901,12 @@ const VIEWS = {
     const c = cycle(ui.repOff), p = cycle(ui.repOff - 1);
     const r = monthReport({entries: S.entries, categories: S.categories, from: c.from, to: c.to, prevFrom: p.from, prevTo: p.to, today: today(), money, lang: S.settings.lang});
     const used = catRows(between(c.from, c.to)).filter(x => x[1]);
-    return `${title('รายงานประจำเดือน', `<button class="ib" onclick="go('sum')" aria-label="${L('กลับ', 'Back')}">${I.chevL}</button>`)}
+    // the back button stays beside the heading instead of floating: floating, it would cover the amounts as they scroll past
+    return `<div class="title rep-title"><button class="ib" onclick="go('sum')" aria-label="${L('กลับ', 'Back')}">${I.chevL}</button><h1>รายงานประจำเดือน</h1></div>
     ${stepper(cycleLabel(c), 'U({repOff: ui.repOff - 1})', 'U({repOff: ui.repOff + 1})', ui.repOff >= 0)}
     <div class="group hero">
-      <div class="rep-top"><div class="pad"><div class="sub">เหลือเก็บ • อัตราการเก็บออม</div>
-        <div class="big num ${r.left < 0 ? 'expense' : ''}" style="font-size:30px">${cents(money(r.left))}</div>
-        ${r.rate === null ? '' : `<div class="mid num">${r.rate}%</div>`}</div>
-        <img src="/chars/${r.mood}.png?v=${CHAR_VERSION}" alt=""></div>
+      <div class="pad"><div class="sub">เหลือเก็บ • อัตราการเก็บออม</div>
+        <div class="big num ${r.left < 0 ? 'expense' : ''}" style="white-space:normal">${cents(money(r.left))}${r.rate === null ? '' : ` <span class="muted" style="font-size:24px;font-weight:600">• ${r.rate}%</span>`}</div></div>
       <div class="split"><div><div class="sub">รวมรายจ่าย</div><div class="mid num expense">${money(r.expense)}</div></div>
         <div><div class="sub">รายรับทั้งหมด</div><div class="mid num income">${money(r.income)}</div></div></div>
     </div>

@@ -1,7 +1,7 @@
-// Draws ป้าคีน for the LINE cards and the report: public/chars/<name>.png (LINE cards take PNG or JPEG, not SVG).
+// Draws ป้าคีน: public/chars/<name>.png (LINE cards take PNG or JPEG, not SVG). Only the LINE cards show them, not the web app.
 //   npm i --no-save @resvg/resvg-js && node make-characters.mjs
 // A doodle: a white blob with thin ink lines, a small pink nose and big expressions; a filter makes the lines wobble.
-// After changing a drawing, bump CHAR_VERSION in src/index.js and public/index.html, because LINE caches images by address.
+// After changing a drawing, bump CHAR_VERSION in src/index.js, because LINE caches images by address.
 import {Resvg} from '@resvg/resvg-js';
 import {mkdirSync, writeFileSync} from 'node:fs';
 
@@ -68,5 +68,5 @@ mkdirSync('public/chars', {recursive: true});
 Object.entries(CHARS).forEach(([name, art], i) => {
   const wobble = `<filter id="w" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="${i + 3}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter>`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><defs>${wobble}</defs><g filter="url(#w)">${art}</g></svg>`;
-  writeFileSync(`public/chars/${name}.png`, new Resvg(svg, {fitTo: {mode: 'width', value: 360}}).render().asPng());
+  writeFileSync(`public/chars/${name}.png`, new Resvg(svg, {fitTo: {mode: 'width', value: 312}}).render().asPng());
 });
