@@ -334,8 +334,8 @@ const T = (text, opts = {}) => ({type: 'text', text: text || '-', wrap: true, ..
 const INK = '#17171A';
 const pill = (label, textColour, bg, action) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'xxl', backgroundColor: bg, paddingTop: '10px', paddingBottom: '10px', action,
   contents: [{type: 'text', text: label, size: 'sm', weight: 'bold', color: textColour, align: 'center'}]});
-// ป้าคีน in the cards: public/chars/<name>.png, drawn by make-characters.mjs
-const CHAR_VERSION = 1;  // bump when the drawings change: LINE caches images by address
+// the characters in the cards: public/chars/<name>.png, stickers from shiba's "silly hamsters" set, used with permission
+const CHAR_VERSION = 2;  // bump when the pictures change: LINE caches images by address
 const character = (origin, name, size) => ({type: 'image', url: `${origin}/chars/${name}.png?v=${CHAR_VERSION}`, size, aspectRatio: '1:1', aspectMode: 'fit', flex: 0});
 // white like the web app's cards; the buttons carry the same red gradient as its + button
 const bubble = (title, sub, body, actions, char) => ({

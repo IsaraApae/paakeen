@@ -20,16 +20,18 @@ Every period gets a report: รวมรายจ่าย, รายรับ�
 
 ## In the LINE chat
 
-Cards in the chat carry ป้าคีน's doodle character, with a mood to match: writing an entry down, cheering over coins, asking about a slip, or crying over an overspent month. The web app stays plain, without the character.
+Cards in the chat carry a hamster with a mood to match: typing an entry in, overjoyed at income, suspicious of a slip, or crying over an overspent month. The web app stays plain, without the hamster.
 
 <p>
   <img src="docs/line-cards.jpg" width="200" alt="LINE cards: a slip question and saved entries">
-  <img src="docs/characters.png" width="420" alt="The eight characters">
+  <img src="docs/characters.png" width="420" alt="The eight hamsters">
 </p>
+
+The hamsters are from [silly hamsters](https://store.line.me/stickershop/product/31413469/en) by shiba. Characters © shiba, used with permission.
 
 - **Type an entry:** "กาแฟ 60", "ข้าว 50 น้ำ 20" (several items in one message) or "เงินเดือน 30000". The bot sorts each item into one of your categories.
 - **Send a slip, voice note or PDF.** For a slip, ป้าคีน records the amount as cash and shows the saved card. A slip paid to a clearly named shop or restaurant keeps that name. One paid to a person, or to a name that doesn't say what the place is (a code like QCS, an abbreviation like ก.กาแฟสด), first asks what it was, then files it into a category based on your answer. Your last answer for that name is offered as a button, and "ใช้ชื่อนี้" keeps the name and stops the question for it.
-- **Saved card:** each entry comes back as a card with ป้าคีน's character, แก้ไข (opens it in the web app) and ลบ. In settings you can switch to a short text reply instead.
+- **Saved card:** each entry comes back as a card with a hamster, แก้ไข (opens it in the web app) and ลบ. In settings you can switch to a short text reply instead.
 - **Category memory:** a name you've used before goes to the same category as last time.
 - **Payment channels (optional):** cash and credit cards. The bot asks which one only when it can't tell.
 - **รายงานประจำเดือน:** รวมรายจ่าย, รายรับทั้งหมด, เหลือเก็บ • อัตราการเก็บออม, เงินหมดไปกับอะไร and บทวิเคราะห์. It arrives by itself when a new period starts (at your reminder time, or 09:00; can be turned off in settings).
@@ -64,7 +66,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 - **Gemini:** typed messages try the fastest model first, while slips, voice notes and PDFs try the strongest. If a model is busy or out of free quota, the next one in the list is used. Both lists are in `wrangler.toml`.
 - **Privacy:** only 1:1 chats are read, never group chats. Each user's web app link is signed and expires.
 - `public/report.js`: the monthly report's numbers and analysis, one copy used by both the web app and the worker. The analysis is written by rules, so it costs no AI quota.
-- `make-characters.mjs`: draws ป้าคีน's characters for the LINE cards (`public/chars/*.png`).
+- `public/chars/*.png`: the hamsters for the LINE cards, one per mood (© shiba, used with permission). After replacing one, bump `CHAR_VERSION` in `src/index.js`, because LINE caches images by address.
 - **Speed:** the tables are indexed per user, so a query reads only that user's rows, which also keeps D1's free daily reads for real use.
 - `make-menu.py`: draws the chat menu image (`public/menu.jpg`, macOS only).
 - `test.mjs`: an end-to-end check that runs the worker locally against a mock LINE and Gemini (`node test.mjs`).
