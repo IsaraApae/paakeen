@@ -167,7 +167,8 @@ try {
   assert.equal(geminiThinking, undefined);  // ok-model rejected the thinking setting, so it was asked again without
 
   // slip follow-up: paid in cash; to a person, so the bot asks the name, files it by that name (no category question), shows the card
-  assert.match(slip[0].text, /พิมพ์ชื่อรายการ/);
+  assert.match(slip[0].altText, /พิมพ์ชื่อรายการ/);
+  assert.match(JSON.stringify(slip[0]), /\/chars\/ask\.png/);
   assert.deepEqual(slip[0].quickReply.items.map(i => i.action.label), ['ข้าม']);
   entries = [{kind: 'expense', amount: 1, category: 'เดินทาง', note: 'ค่าแท็กซี่ 7-11'}];  // the model's pick for the name
   const done = (await say('ค่าแท็กซี่ 7-11'))[0];  // a name may contain numbers
@@ -198,6 +199,42 @@ try {
   assert.match(JSON.stringify(shop), /จดรายจ่ายแล้ว.*🍜.*ร้านส้มตำป้าแดง.*อาหาร · เงินสด/);
   assert.equal((await api(t1, 'GET', 'state')).settings.pending, null);
 
+  // a name that doesn't say what the place is gets asked about, even if the model calls it a business
+  for (const [note, party] of [['QCS', 'business'], ['ก.กาแฟสด', 'business'], ['ร้านนั้น', 'unclear']]) {
+    entries = [{kind: 'expense', amount: 75, category: 'อาหาร', note, party}];
+    const unsure = (await hook({type: 'message', message: {type: 'image', id: '45'}}))[0];
+    assert.ok(unsure.altText.includes(`“${note}”`), note);
+    assert.deepEqual(unsure.quickReply.items.map(i => i.action.label), ['ใช้ชื่อนี้', 'ข้าม']);
+    await hook({type: 'postback', postback: {data: unsure.quickReply.items[1].action.data}});
+  }
+  // a short name that really is a brand is not
+  entries = [{kind: 'expense', amount: 150, category: 'อาหาร', note: 'KFC', party: 'business'}];
+  assert.equal((await hook({type: 'message', message: {type: 'image', id: '46'}}))[0].quickReply, undefined);
+
+  // an answer is offered again next time
+  entries = [{kind: 'expense', amount: 75, category: 'อาหาร', note: 'QCS', party: 'business'}];
+  await hook({type: 'message', message: {type: 'image', id: '47'}});
+  entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวกะเพรา'}];
+  assert.match(JSON.stringify((await say('ข้าวกะเพรา'))[0]), /ข้าวกะเพรา/);
+  entries = [{kind: 'expense', amount: 80, category: 'อาหาร', note: 'QCS', party: 'business'}];
+  const offered = (await hook({type: 'message', message: {type: 'image', id: '48'}}))[0];
+  assert.deepEqual(offered.quickReply.items.map(i => i.action.label), ['ข้าวกะเพรา', 'ใช้ชื่อนี้', 'ข้าม']);
+  // "this name is right" keeps it and stops the question for that name
+  await hook({type: 'postback', postback: {data: offered.quickReply.items[1].action.data}});
+  assert.equal((await hook({type: 'message', message: {type: 'image', id: '49'}}))[0].quickReply, undefined);
+
+  // รายงานประจำเดือน: last period's numbers, its analysis and the character that fits
+  const t3 = await tokenOf('u3'), bkkToday = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10), day = n => new Date(Date.parse(bkkToday) - n * 864e5).toISOString().slice(0, 10);
+  await api(t3, 'PUT', 'settings', {cycle_day: +bkkToday.slice(8), remind: '00:00'});
+  const food = (await api(t3, 'GET', 'state')).categories.find(c => c.name === 'อาหาร').id;
+  for (const [ts, kind, amount, note] of [[`${day(1)} 09:00`, 'income', 1000, 'เงินเดือน'], [`${day(1)} 12:00`, 'expense', 250, 'กาแฟ'], [`${day(2)} 12:00`, 'expense', 250, 'กาแฟ'], [`${day(3)} 12:00`, 'expense', 250, 'กาแฟ']]) {
+    await api(t3, 'POST', 'entries', {ts, kind, amount, note, category_id: kind === 'expense' ? food : null});
+  }
+  const report = JSON.stringify((await say('รายงาน', 'u3'))[0]);
+  for (const part of ['รายงานประจำเดือน', 'รวมรายจ่าย', '฿750', 'รายรับทั้งหมด', '฿1,000', 'เหลือเก็บ • อัตราการเก็บออม', '฿250 • 25%', 'เงินหมดไปกับอะไร', 'อาหาร', 'บทวิเคราะห์', 'ถึงเกณฑ์ 20%', '“กาแฟ” 3 ครั้ง', '/chars/great.png']) assert.ok(report.includes(part), part);
+  for (const c of report.matchAll(/"(?:color|backgroundColor)":"([^"]*)"/g)) assert.match(c[1], /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
+  assert.match(JSON.stringify((await say('รายงานเดือนนี้', 'u3'))[0]), /ยังไม่มีรายการ/);  // this period is still empty
+
   // postbacks: delete is scoped to the owner; commands
   assert.equal((await hook({type: 'postback', postback: {data: `del:${coffee.id}`}}, 'u2'))[0].text, 'ไม่พบรายการนี้แล้วจ้ะ');
   assert.equal((await hook({type: 'postback', postback: {data: `del:${coffee.id}`}}))[0].text, 'ลบแล้วจ้ะ');
@@ -215,7 +252,9 @@ try {
   await fetch(base + '/__scheduled');
   for (let i = 0; i < 50 && !pushes.length; i++) await sleep(100);
   await sleep(500);
-  assert.deepEqual(pushes.map(p => p.to), ['u2']);
+  assert.deepEqual(pushes.filter(p => p.messages[0].type === 'text' && p.to !== 'u3').map(p => p.to), ['u2']);
+  // the new period's first day: last period's report arrives once, however many runs there are
+  assert.equal(pushes.filter(p => p.to === 'u3' && p.messages[0].type === 'flex').length, 1);
   assert.equal(menus.length, menusBefore);  // the scheduled job leaves up-to-date menus alone
 
   console.log('ok');
