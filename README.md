@@ -4,12 +4,28 @@ A LINE chatbot that records income and expenses, with a web app for summaries an
 
 <p>
   <img src="docs/summary.jpg" width="200" alt="สรุป">
+  <img src="docs/report.jpg" width="200" alt="รายงานประจำเดือน">
   <img src="docs/analysis-daily.jpg" width="200" alt="วิเคราะห์ รายวัน">
-  <img src="docs/entries.jpg" width="200" alt="รายการ">
   <img src="docs/summary-dark.jpg" width="200" alt="สรุป in dark mode">
 </p>
 
+## รายงานประจำเดือน
+
+Every period gets a report: รวมรายจ่าย, รายรับทั้งหมด, เหลือเก็บ • อัตราการเก็บออม, เงินหมดไปกับอะไร and บทวิเคราะห์. The analysis compares the savings rate with a 20% goal and spending with the period before, and points out the biggest category, the one that grew most, and things bought again and again.
+
+<p>
+  <img src="docs/line-report.jpg" width="200" alt="The report card in LINE">
+  <img src="docs/report-analysis.jpg" width="200" alt="บทวิเคราะห์ in the web app">
+</p>
+
 ## In the LINE chat
+
+Cards in the chat carry ป้าคีน's doodle character, with a mood to match: writing an entry down, cheering over coins, asking about a slip, or crying over an overspent month. The web app stays plain, without the character.
+
+<p>
+  <img src="docs/line-cards.jpg" width="200" alt="LINE cards: a slip question and saved entries">
+  <img src="docs/characters.png" width="420" alt="The eight characters">
+</p>
 
 - **Type an entry:** "กาแฟ 60", "ข้าว 50 น้ำ 20" (several items in one message) or "เงินเดือน 30000". The bot sorts each item into one of your categories.
 - **Send a slip, voice note or PDF.** For a slip, ป้าคีน records the amount as cash and shows the saved card. A slip paid to a clearly named shop or restaurant keeps that name. One paid to a person, or to a name that doesn't say what the place is (a code like QCS, an abbreviation like ก.กาแฟสด), first asks what it was, then files it into a category based on your answer. Your last answer for that name is offered as a button, and "ใช้ชื่อนี้" keeps the name and stops the question for it.
@@ -35,6 +51,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 | ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, theme (light, dark or match device), Thai or English, currency, time zone |
 
 <p>
+  <img src="docs/entries.jpg" width="200" alt="รายการ">
   <img src="docs/analysis-monthly.jpg" width="200" alt="วิเคราะห์ รายเดือน">
   <img src="docs/categories.jpg" width="200" alt="หมวดหมู่">
   <img src="docs/edit-entry.jpg" width="200" alt="แก้ไขรายการ">
@@ -47,7 +64,8 @@ Opened from the chat menu with a personal signed link. No password needed.
 - **Gemini:** typed messages try the fastest model first, while slips, voice notes and PDFs try the strongest. If a model is busy or out of free quota, the next one in the list is used. Both lists are in `wrangler.toml`.
 - **Privacy:** only 1:1 chats are read, never group chats. Each user's web app link is signed and expires.
 - `public/report.js`: the monthly report's numbers and analysis, one copy used by both the web app and the worker. The analysis is written by rules, so it costs no AI quota.
-- `make-characters.mjs`: draws ป้าคีน's characters (`public/chars/*.png`).
+- `make-characters.mjs`: draws ป้าคีน's characters for the LINE cards (`public/chars/*.png`).
+- **Speed:** the tables are indexed per user, so a query reads only that user's rows, which also keeps D1's free daily reads for real use.
 - `make-menu.py`: draws the chat menu image (`public/menu.jpg`, macOS only).
 - `test.mjs`: an end-to-end check that runs the worker locally against a mock LINE and Gemini (`node test.mjs`).
 - `seed.mjs`: fills a local `wrangler dev` with a test user and a few months of sample entries, and prints a link to open the web app as that user.

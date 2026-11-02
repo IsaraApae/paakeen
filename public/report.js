@@ -5,7 +5,7 @@ const dayCount = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a +
 const SAVE_GOAL = 20;  // the 20% of the 50/30/20 budgeting rule
 
 // entries: at least this period's and the one before's. Dates are 'YYYY-MM-DD'; money(n) formats an amount.
-// mood is the file name of the character that fits: public/chars/<mood>.png
+// mood is the file name of the character that fits, for the LINE card: public/chars/<mood>.png
 globalThis.monthReport = ({entries, categories, from, to, prevFrom, prevTo, today, money, lang}) => {
   const t = (th, en) => lang === 'en' ? en : th;
   const inRange = (a, b) => entries.filter(e => e.ts.slice(0, 10) >= a && e.ts.slice(0, 10) <= b);
