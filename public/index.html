@@ -11,6 +11,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">  <!-- iPhone browsers take the page icon from this -->
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
 <style>
 /* Solid white cards with soft shadows on a plain background; the red gradient is kept for the + button */
@@ -274,6 +275,9 @@ dialog .group { background: var(--surface); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pill.danger { color: var(--red); }
 .pill.wide { width: 100%; }
+.rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
+.rep-title h1 { min-width: 0; }
+.says { margin: 0; padding: 16px 20px 16px 36px; display: grid; gap: 8px; font-size: 15px; }
 #toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--label); padding: 10px 18px; border-radius: 999px; font-size: 15px; display: none; z-index: 5; white-space: nowrap; }
 </style>
 </head>
@@ -295,6 +299,7 @@ dialog .group { background: var(--surface); }
 <dialog id="dlg"></dialog>
 <dialog id="pick"></dialog>
 <div id="toast" role="status"></div>
+<script src="/report.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -326,7 +331,7 @@ const topTint = () => {
   setTimeout(() => document.querySelectorAll('#bg, .blur-bottom').forEach(el => el.replaceWith(el.cloneNode(true))), 50);
 };
 try { applyTheme(localStorage.getItem('theme')); } catch {}
-const ui = {sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
+const ui = {repOff: 0, sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
             f: {mode: 'month', off: 0, from: '', to: '', kind: 'all', cat: null}};
 // expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
 const PAL = ['#E58C84', '#E8AC72', '#DDC46A', '#7FC4BD', '#86B2DE', '#9F9DDA', '#C3A0D8', '#E39AB4', '#BBA38C', '#92C1D1', '#A9A9B0'];
@@ -363,7 +368,7 @@ const EN = {
   'ติดตามช่องทางชำระเงิน': 'Track payment channel',
   'ป้าจะจับคู่ช่องทางจากข้อความ เสียง รูป หรือ PDF และจะถามเฉพาะตอนที่ไม่แน่ใจ': 'Matched from your text, voice, photos or PDFs. The bot asks only when unsure.',
   'เพิ่มช่องทาง': 'Add channel', 'บัตรเครดิต': 'Credit cards', 'เพิ่มบัตรเครดิต': 'Add credit card', 'ชื่อบัตร': 'Card name', 'เงินสด': 'Cash', 'ไม่ระบุ': 'Not set',
-  'ยอดตามช่องทาง': 'Charged per payment channel', 'สลิปที่ส่งมาจะจดเป็นเงินสด ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ': 'Slips are recorded as cash. The bot asks for the name, then picks the category from it.', 'ข้อความยืนยันหลังจด': 'Confirmation message', 'การ์ด': 'Card', 'ข้อความสั้น': 'Short text',
+  'ยอดตามช่องทาง': 'Charged per payment channel', 'สลิปที่ส่งมาจะจดเป็นเงินสด ถ้าชื่อบนสลิปไม่ชัดว่าเป็นร้านอะไร ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ': 'Slips are recorded as cash. If the name on a slip does not clearly say what the place is, the bot asks for a name, then picks the category from it.', 'ข้อความยืนยันหลังจด': 'Confirmation message', 'การ์ด': 'Card', 'ข้อความสั้น': 'Short text',
   'การแจ้งเตือน': 'Reminders', 'เตือนจดประจำวัน': 'Daily reminder', 'ปิด': 'Off',
   'ป้าจะทักมาเตือนตามเวลานี้ ถ้าวันนั้นยังไม่ได้จดอะไร': 'A nudge at this time on days with nothing logged.',
   'ทั่วไป': 'General', 'ภาษา': 'Language', 'สกุลเงิน': 'Currency', 'โซนเวลา': 'Time zone',
@@ -372,6 +377,9 @@ const EN = {
   'ความถี่': 'Repeats', 'ทุกวัน': 'Daily', 'ทุกสัปดาห์': 'Weekly', 'ทุกเดือน': 'Monthly', 'เริ่มวันที่': 'Starts on',
   'ชื่อช่องทาง': 'Name', 'วันที่ (1-31)': 'Day (1-31)', 'กำลังโหลด…': 'Loading…',
   'ลบรายการทั้งหมดจริงหรือ? กู้คืนไม่ได้นะ': 'Delete every entry? This cannot be undone.',
+  'รายงานประจำเดือน': 'Monthly report', 'รวมรายจ่าย': 'Total spent', 'รายรับทั้งหมด': 'Total income', 'เหลือเก็บ • อัตราการเก็บออม': 'Left to save • savings rate',
+  'เงินหมดไปกับอะไร': 'Where the money went', 'บทวิเคราะห์': 'Analysis', 'ส่งรายงานประจำเดือนทาง LINE': 'Send the monthly report on LINE',
+  'เมื่อขึ้นรอบใหม่ ป้าจะส่งรายงานของรอบที่แล้วมาให้': 'When a new period starts, last period\'s report arrives in the chat.',
 };
 
 // ---------- helpers ----------
@@ -718,7 +726,7 @@ function render() {
   charts.forEach(c => c.destroy()); charts = []; after = [];
   // no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
   if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'report' ? 'sum' : tab)));
   document.body.classList.toggle('selecting', !!ui.sel);
   const chips = $('.chips'), was = chips && [chips.dataset.k, chips.scrollLeft];
   $('#main').innerHTML = VIEWS[tab]();
@@ -862,6 +870,8 @@ async function exportCsv() {
   if (navigator.canShare?.({files: [file]})) return navigator.share({files: [file]}).catch(() => {});
   const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click();
 }
+// opens on the last finished period if it has anything in it, else this one
+const openReport = () => { const c = cycle(-1); ui.repOff = between(c.from, c.to).length ? -1 : 0; go('report'); };
 const shift = n => U({month: addM(ui.month + '-01', n).slice(0, 7)});
 
 // ---------- views ----------
@@ -876,6 +886,7 @@ const VIEWS = {
       <div class="split"><div><div class="sub">รายรับ</div><div class="mid num income">${money(inc)}</div></div>
         <div><div class="sub">รายจ่าย</div><div class="mid num expense">${money(exp)}</div></div></div>
     </div>
+    <div class="group"><button class="row tap" onclick="openReport()"><span class="grow">รายงานประจำเดือน</span>${CHEV}</button></div>
     <div class="sect"><span>รายจ่ายตามหมวด</span><span>${list.length} ${L('รายการ', list.length === 1 ? 'entry' : 'entries')}</span></div>
     <div class="group">
       ${used.length ? `<div class="donut">${donut('donut', used)}</div>` : '<p class="empty">ยังไม่มีรายจ่ายในช่วงนี้</p>'}
@@ -884,6 +895,25 @@ const VIEWS = {
     </div>
     ${S.channels.length ? `<div class="sect"><span>ยอดตามช่องทาง</span></div><div class="group">${channelRows(list)}</div>` : ''}
     ${S.entries.length ? `<div class="sect"><b>รายการล่าสุด</b><button class="link" onclick="go('list')">ดูทั้งหมด</button></div>${days(S.entries.slice(0, 7))}` : ''}`;
+  },
+
+  report() {
+    const c = cycle(ui.repOff), p = cycle(ui.repOff - 1);
+    const r = monthReport({entries: S.entries, categories: S.categories, from: c.from, to: c.to, prevFrom: p.from, prevTo: p.to, today: today(), money, lang: S.settings.lang});
+    const used = catRows(between(c.from, c.to)).filter(x => x[1]);
+    // the back button stays beside the heading instead of floating: floating, it would cover the amounts as they scroll past
+    return `<div class="title rep-title"><button class="ib" onclick="go('sum')" aria-label="${L('กลับ', 'Back')}">${I.chevL}</button><h1>รายงานประจำเดือน</h1></div>
+    ${stepper(cycleLabel(c), 'U({repOff: ui.repOff - 1})', 'U({repOff: ui.repOff + 1})', ui.repOff >= 0)}
+    <div class="group hero">
+      <div class="pad"><div class="sub">เหลือเก็บ • อัตราการเก็บออม</div>
+        <div class="big num ${r.left < 0 ? 'expense' : ''}" style="white-space:normal">${cents(money(r.left))}${r.rate === null ? '' : ` <span class="muted" style="font-size:24px;font-weight:600">• ${r.rate}%</span>`}</div></div>
+      <div class="split"><div><div class="sub">รวมรายจ่าย</div><div class="mid num expense">${money(r.expense)}</div></div>
+        <div><div class="sub">รายรับทั้งหมด</div><div class="mid num income">${money(r.income)}</div></div></div>
+    </div>
+    <div class="sect"><span>เงินหมดไปกับอะไร</span></div>
+    <div class="group">${used.length ? `<div class="donut">${donut('reppie', used)}</div>${catList(used)}` : '<p class="empty">ยังไม่มีรายจ่ายในช่วงนี้</p>'}</div>
+    <div class="sect"><span>บทวิเคราะห์</span></div>
+    <div class="group"><ul class="says">${r.says.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
   },
 
   ana() {
@@ -1006,11 +1036,13 @@ const VIEWS = {
       ${chans(c => c.type === 'card')}
       ${S.channels.length < 10 ? `<button class="row tap link" onclick="addChannel('card')">${I.plus}<span>เพิ่มบัตรเครดิต</span></button>` : ''}
     </div>
-    <p class="foot">สลิปที่ส่งมาจะจดเป็นเงินสด ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ</p>
+    <p class="foot">สลิปที่ส่งมาจะจดเป็นเงินสด ถ้าชื่อบนสลิปไม่ชัดว่าเป็นร้านอะไร ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ</p>
 
     <div class="sect"><span>การแจ้งเตือน</span></div>
     <div class="group"><button class="row tap" onclick="setRemind()"><span class="grow">เตือนจดประจำวัน</span><span class="muted">${s.remind || L('ปิด', 'Off')}</span>${CHEV}</button></div>
     <p class="foot">ป้าจะทักมาเตือนตามเวลานี้ ถ้าวันนั้นยังไม่ได้จดอะไร</p>
+    <div class="group"><label class="row"><span class="grow">ส่งรายงานประจำเดือนทาง LINE</span>${tog('report')}</label></div>
+    <p class="foot">เมื่อขึ้นรอบใหม่ ป้าจะส่งรายงานของรอบที่แล้วมาให้</p>
 
     <div class="sect"><span>ทั่วไป</span></div>
     <div class="group">
@@ -1028,7 +1060,10 @@ const start = () => {
   Object.assign(ui.f, cycle(0));
   render();
   let back = null; try { back = sessionStorage.getItem('tab'); sessionStorage.removeItem('tab'); } catch {}
-  if (hash.get('tab') in VIEWS) go(hash.get('tab'));  // the chat menu's tiles
+  const rep = hash.get('rep');  // the report card's link names its period
+  if (rep) { const from = cycle(0).from; ui.repOff = Math.min(0, (rep.slice(0, 4) - from.slice(0, 4)) * 12 + (rep.slice(5, 7) - from.slice(5, 7))); }
+  if (hash.get('tab') === 'report' && !rep) openReport();
+  else if (hash.get('tab') in VIEWS) go(hash.get('tab'));  // the chat menu's tiles
   else if (back in VIEWS) go(back);  // after a reload from ตั้งค่า
   if (hash.get('add')) editEntry();
   if (hash.get('edit')) editEntry(+hash.get('edit'));

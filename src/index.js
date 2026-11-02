@@ -1,11 +1,13 @@
 // ป้าคีน: LINE income/expense bot + web app API, on Cloudflare Workers + D1.
 // The web app itself is public/index.html, served as a static asset.
 // Check: node test.mjs
+import '../public/report.js';  // defines globalThis.monthReport, shared with the web app
 
 const RED = '#C24A44', GREEN = '#35805A', GREY = '#6E6E73';
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const TH_FULL_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const HELP = 'พิมพ์รายการได้เลยจ้ะ เช่น “กาแฟ 60” หรือ “เงินเดือน 30000” จะส่งรูปสลิป เสียง หรือ PDF ก็ได้\n'
-  + 'ดูสรุป กราฟ และแก้ไขรายการได้จากเมนูด้านล่าง · พิมพ์ “ลบ” เพื่อลบรายการล่าสุด';
+  + 'ดูสรุป กราฟ และแก้ไขรายการได้จากเมนูด้านล่าง · พิมพ์ “รายงาน” เพื่อดูรายงานประจำเดือน · พิมพ์ “ลบ” เพื่อลบรายการล่าสุด';
 const FAIL = 'ขอโทษจ้ะ ป้าจดไม่สำเร็จ ลองใหม่อีกทีนะ';
 const BUSY = 'ตอนนี้ AI คนใช้เยอะจ้ะ รอสักครู่แล้วส่งใหม่อีกทีนะ หรือกด + ในแอปเพื่อจดเองได้เลย';
 const QUOTA = 'วันนี้ป้าใช้โควต้า AI ฟรีหมดแล้วจ้ะ ลองใหม่ทีหลัง หรือกด + ในแอปเพื่อจดเองได้เลย';
@@ -15,7 +17,7 @@ const DEFAULT_CATEGORIES = {
 };
 const DEFAULT_SETTINGS = {
   memory: true, track_channel: false, confirm: 'card', remind: '', lang: 'th',
-  currency: '฿', tz: 'Asia/Bangkok', cycle_day: 1, theme: 'auto',
+  currency: '฿', tz: 'Asia/Bangkok', cycle_day: 1, theme: 'auto', report: true,
 };
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT, picture TEXT, settings TEXT)',
@@ -25,6 +27,12 @@ const SCHEMA = [
     category_id INTEGER, note TEXT DEFAULT '', channel_id INTEGER, memory INTEGER DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS recurring (id INTEGER PRIMARY KEY, user_id TEXT, kind TEXT, amount REAL, category_id INTEGER,
     note TEXT DEFAULT '', channel_id INTEGER, freq TEXT, start TEXT, count INTEGER DEFAULT 0)`,
+  // every query is per user; without these each one reads every user's rows, which also counts against D1's free daily reads
+  'CREATE INDEX IF NOT EXISTS entries_user_ts ON entries (user_id, ts)',
+  'CREATE INDEX IF NOT EXISTS entries_user_note ON entries (user_id, kind, note COLLATE NOCASE)',
+  'CREATE INDEX IF NOT EXISTS categories_user ON categories (user_id, sort)',
+  'CREATE INDEX IF NOT EXISTS channels_user ON channels (user_id)',
+  'CREATE INDEX IF NOT EXISTS recurring_user ON recurring (user_id)',
 ];
 const ENTRY_SCHEMA = {
   type: 'OBJECT',
@@ -37,7 +45,7 @@ const ENTRY_SCHEMA = {
       note: {type: 'STRING'},
       datetime: {type: 'STRING'},
       channel: {type: 'STRING'},
-      party: {type: 'STRING', enum: ['business', 'person', 'unknown']},
+      party: {type: 'STRING', enum: ['business', 'unclear', 'person', 'unknown']},
     },
     required: ['kind', 'amount', 'category', 'note'],
   }}},
@@ -58,10 +66,10 @@ const migrate = env => env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
     "INSERT INTO channels (user_id, name, type) SELECT id, 'KTC', 'card' FROM users",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'UOB', 'card' FROM users",
   ].map(sql => env.DB.prepare(sql))), () => {}));
-// Each new isolate checks only that the newest column exists, one query instead of running every migration first.
-// With little traffic most requests land on a new isolate. After adding a migration, point this at its column.
+// Each new isolate checks only that the newest migration has run, one query instead of running every migration first.
+// With little traffic most requests land on a new isolate. After adding a migration, point this at its column or index.
 let ready;
-const init = env => ready ??= env.DB.prepare('SELECT emoji FROM categories LIMIT 0').run().catch(() => migrate(env))
+const init = env => ready ??= env.DB.prepare('SELECT 1 FROM recurring INDEXED BY recurring_user LIMIT 0').run().catch(() => migrate(env))
   .catch(e => { ready = null; throw e; });
 const q = (env, sql, ...args) => env.DB.prepare(sql).bind(...args);
 const all = async (env, sql, ...args) => (await q(env, sql, ...args).all()).results;
@@ -91,10 +99,13 @@ const D = s => new Date(s + 'T00:00:00Z'), iso = d => d.toISOString().slice(0, 1
 const validDate = s => { try { return typeof s === 'string' && iso(D(s)) === s; } catch { return false; } };
 const validTs = s => typeof s === 'string' && /^\d{4}-\d\d-\d\d ([01]\d|2[0-3]):[0-5]\d$/.test(s) && validDate(s.slice(0, 10));
 
+// building a formatter takes far longer than using one, and the cron job asks for every user, on the free plan's 10ms of CPU
+const clocks = new Map();
 function localNow(s) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+  if (!clocks.has(s.tz)) clocks.set(s.tz, new Intl.DateTimeFormat('en-US', {
     timeZone: s.tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  }));
+  const p = Object.fromEntries(clocks.get(s.tz).formatToParts(new Date()).map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 function addDays(s, n) { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); }
@@ -104,6 +115,15 @@ function addMonths(s, k) {  // same day next month, clamped to the month's lengt
   d.setUTCMonth(d.getUTCMonth() + k);
   d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()));
   return iso(d);
+}
+// One summary period; off counts periods back from the current one. It starts on cycle_day, clamped to the month's
+// length (day 31 in a 30-day month starts on the 30th).
+function cycleOf(s, off = 0) {
+  const today = localNow(s).slice(0, 10), m0 = today.slice(0, 8) + '01';
+  const daysIn = m => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7), 0)).getUTCDate();
+  const startIn = m => m.slice(0, 8) + String(Math.min(s.cycle_day, daysIn(m))).padStart(2, '0');
+  const m = addMonths(m0, (today >= startIn(m0) ? 0 : -1) + off);
+  return {from: startIn(m), to: addDays(startIn(addMonths(m, 1)), -1)};
 }
 const nthDue = (start, freq, k) => freq === 'monthly' ? addMonths(start, k) : addDays(start, k * (freq === 'weekly' ? 7 : 1));
 
@@ -280,8 +300,9 @@ async function record(env, u, parts) {
     + `\`datetime\` is 'YYYY-MM-DD HH:MM' only if the source says when it happened, otherwise ''. Now is ${now}. `
     + (chans.length ? `\`channel\` is how it was paid, one of: ${chans.map(c => c.name).join(', ')}; '' if not stated. ` : '')
     + 'Copy `note` from the user\'s own words exactly, keeping their spelling and every Thai vowel and tone mark; never correct, respell or translate it. '
-    + '`party` is who received the money (expense) or sent it (income): \'business\' for a shop, restaurant, company or brand, '
-    + '\'person\' for a person\'s name, \'unknown\' if it doesn\'t say. For a business, `note` is its name as shown. '
+    + '`party` is who received the money (expense) or sent it (income): \'business\' only for a clear, recognisable name of a shop, restaurant, company or brand; '
+    + '\'unclear\' for a name that doesn\'t clearly say what the place is, such as an abbreviation, a code, a merchant account or a payment service (like QCS or ก.กาแฟสด); '
+    + '\'person\' for a person\'s name, \'unknown\' if it doesn\'t say. For a business or an unclear name, `note` is the name as shown. '
     + 'If there is no amount of money, return an empty list.';
   const saved = [], typed = parts.every(p => p.text !== undefined) && parts.map(p => p.text).join('\n');
   for (const e of await gemini(env, parts, system)) {
@@ -313,11 +334,17 @@ const T = (text, opts = {}) => ({type: 'text', text: text || '-', wrap: true, ..
 const INK = '#17171A';
 const pill = (label, textColour, bg, action) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'xxl', backgroundColor: bg, paddingTop: '10px', paddingBottom: '10px', action,
   contents: [{type: 'text', text: label, size: 'sm', weight: 'bold', color: textColour, align: 'center'}]});
+// ป้าคีน in the cards: public/chars/<name>.png, drawn by make-characters.mjs
+const CHAR_VERSION = 1;  // bump when the drawings change: LINE caches images by address
+const character = (origin, name, size) => ({type: 'image', url: `${origin}/chars/${name}.png?v=${CHAR_VERSION}`, size, aspectRatio: '1:1', aspectMode: 'fit', flex: 0});
 // white like the web app's cards; the buttons carry the same red gradient as its + button
-const bubble = (title, sub, body, actions) => ({
+const bubble = (title, sub, body, actions, char) => ({
   type: 'bubble',
   body: {type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px', backgroundColor: '#FFFFFF', contents: [
-    {type: 'box', layout: 'vertical', contents: [T(title, {weight: 'bold', size: 'lg', color: INK}), T(sub, {size: 'xs', color: GREY})]},
+    {type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', contents: [
+      {type: 'box', layout: 'vertical', flex: 1, contents: [T(title, {weight: 'bold', size: 'lg', color: INK}), T(sub, {size: 'xs', color: GREY})]},
+      ...(char ? [char] : []),
+    ]},
     ...body,
   ]},
   footer: {type: 'box', layout: 'horizontal', spacing: 'sm', paddingStart: '20px', paddingEnd: '20px', paddingBottom: '20px', paddingTop: '0px', contents: actions.map(action =>
@@ -336,7 +363,7 @@ const badge = (colour, emoji, size) => ({type: 'box', layout: 'vertical', flex: 
   contents: [emoji ? {type: 'text', text: emoji, size: 'md', flex: 0, align: 'center'} : {type: 'box', layout: 'vertical', width: '10px', height: '10px', cornerRadius: '5px', backgroundColor: colour, contents: []}]});
 
 // The "saved" card, styled like the web app: a white card, the category's badge, a big amount and two capsules.
-function savedCard(s, e, editUrl) {
+function savedCard(origin, s, e, editUrl) {
   const out = e.kind === 'expense', colour = out ? RED : GREEN;
   const details = [e.category, e.channel, e.memory ? 'จำจากครั้งก่อน' : ''].filter(Boolean).join(' · ');
   return {
@@ -356,7 +383,10 @@ function savedCard(s, e, editUrl) {
             T(details, {size: 'xs', color: GREY}),
           ]},
         ]},
-        T(`${out ? '-' : '+'}${money(s, e.amount)}`, {size: '3xl', weight: 'bold', color: colour}),
+        {type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center', contents: [
+          T(`${out ? '-' : '+'}${money(s, e.amount)}`, {size: '3xl', weight: 'bold', color: colour, flex: 1, wrap: false, adjustMode: 'shrink-to-fit'}),
+          character(origin, out ? 'write' : 'coins', '72px'),
+        ]},
         {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [
           pill('แก้ไข', INK, '#F1F1F3', {type: 'uri', label: 'แก้ไข', uri: editUrl}),
           pill('ลบ', RED, '#FBE9E7', {type: 'postback', label: 'ลบ', data: `del:${e.id}`, displayText: 'ลบรายการนี้'}),
@@ -370,7 +400,7 @@ async function confirm(env, origin, u, saved, skipChannels) {
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note} (${e.category})`;
   const msgs = [s.confirm === 'text'
     ? textMsg('จดแล้วจ้ะ\n' + saved.map(line).join('\n'))
-    : flex('จดสำเร็จ: ' + saved.map(line).join(', '), await Promise.all(saved.map(async e => savedCard(s, e,
+    : flex('จดสำเร็จ: ' + saved.map(line).join(', '), await Promise.all(saved.map(async e => savedCard(origin, s, e,
       await appUrl(env, origin, u.id, `&edit=${e.id}`)))))];
   const chans = s.track_channel && !skipChannels ? await all(env, 'SELECT * FROM channels WHERE user_id = ?', u.id) : [];
   const unknown = saved.filter(e => !e.channel && e.kind === 'expense').map(e => e.id).join(',');  // income never has a payment channel
@@ -382,40 +412,71 @@ async function confirm(env, origin, u, saved, skipChannels) {
   return msgs;
 }
 
+const statBox = (s, label, n, colour) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'lg', backgroundColor: '#F1F1F3', paddingAll: '10px',
+  contents: [T(label, {size: 'xs', color: GREY}), T(money(s, n), {size: 'md', weight: 'bold', color: colour})]});
+// as in สรุป: the badge, the name, its share, its amount, then a bar for that share. cats: the expense categories, in order
+const catRow = (s, cats, sum, r) => {
+  const i = cats.findIndex(c => c.name === r.name), colour = cats[i]?.color || (i >= 0 ? PAL[i % PAL.length] : '#A9A9B0'), share = r.total / (sum || 1) * 100;
+  return {type: 'box', layout: 'vertical', spacing: 'sm', margin: 'lg', contents: [
+    {type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center', contents: [
+      badge(colour, catEmoji(r.name, cats[i]?.emoji), '30px'),
+      T(r.name, {size: 'sm', color: INK, flex: 1}),
+      T(`${Math.round(share)}%`, {size: 'xs', color: GREY, flex: 0, wrap: false}),
+      T(money(s, r.total), {size: 'sm', weight: 'bold', color: INK, flex: 0, wrap: false}),
+    ]},
+    {type: 'box', layout: 'vertical', height: '5px', cornerRadius: '3px', backgroundColor: colour + '2E', contents: [
+      {type: 'box', layout: 'vertical', height: '5px', width: `${Math.max(1, Math.round(share))}%`, cornerRadius: '3px', backgroundColor: colour, contents: []},
+    ]},
+  ]};
+};
+
 async function summaryMsg(env, origin, u) {
-  const s = settings(u), today = localNow(s).slice(0, 10), m0 = today.slice(0, 8) + '01';
-  // the cycle starts on cycle_day, clamped to the month's length (day 31 in a 30-day month starts on the 30th)
-  const daysIn = m => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7), 0)).getUTCDate();
-  const startIn = m => m.slice(0, 8) + String(Math.min(s.cycle_day, daysIn(m))).padStart(2, '0');
-  const start = today >= startIn(m0) ? startIn(m0) : startIn(addMonths(m0, -1));
+  const s = settings(u), start = cycleOf(s).from;
   const rows = await all(env, `SELECT e.kind, COALESCE(c.name, 'อื่นๆ') AS name, SUM(e.amount) AS total FROM entries e
     LEFT JOIN categories c ON c.id = e.category_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start);
   const total = kind => rows.filter(r => r.kind === kind).reduce((a, r) => a + r.total, 0);
   const left = total('income') - total('expense');
   const cats = await all(env, "SELECT name, color, emoji FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id);
-  const stat = (label, n, colour) => ({type: 'box', layout: 'vertical', flex: 1, cornerRadius: 'lg', backgroundColor: '#F1F1F3', paddingAll: '10px',
-    contents: [T(label, {size: 'xs', color: GREY}), T(money(s, n), {size: 'md', weight: 'bold', color: colour})]});
-  const catRow = r => {  // as in สรุป: the badge, the name, its share, its amount, then a bar for that share
-    const i = cats.findIndex(c => c.name === r.name), colour = cats[i]?.color || (i >= 0 ? PAL[i % PAL.length] : '#A9A9B0'), share = r.total / (total('expense') || 1) * 100;
-    return {type: 'box', layout: 'vertical', spacing: 'sm', margin: 'lg', contents: [
-      {type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center', contents: [
-        badge(colour, catEmoji(r.name, cats[i]?.emoji), '30px'),
-        T(r.name, {size: 'sm', color: INK, flex: 1}),
-        T(`${Math.round(share)}%`, {size: 'xs', color: GREY, flex: 0, wrap: false}),
-        T(money(s, r.total), {size: 'sm', weight: 'bold', color: INK, flex: 0, wrap: false}),
-      ]},
-      {type: 'box', layout: 'vertical', height: '5px', cornerRadius: '3px', backgroundColor: colour + '2E', contents: [
-        {type: 'box', layout: 'vertical', height: '5px', width: `${Math.max(1, Math.round(share))}%`, cornerRadius: '3px', backgroundColor: colour, contents: []},
-      ]},
-    ]};
-  };
   const body = [
     {type: 'box', layout: 'vertical', contents: [T('เหลือเก็บ', {size: 'xs', color: GREY}), T(money(s, left), {size: 'xxl', weight: 'bold', color: INK})]},
-    {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [stat('รายรับ', total('income'), GREEN), stat('รายจ่าย', total('expense'), RED)]},
-    ...rows.filter(r => r.kind === 'expense').slice(0, 10).map(catRow),
+    {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [statBox(s, 'รายรับ', total('income'), GREEN), statBox(s, 'รายจ่าย', total('expense'), RED)]},
+    ...rows.filter(r => r.kind === 'expense').slice(0, 10).map(r => catRow(s, cats, total('expense'), r)),
   ];
   return flex(`สรุปรอบนี้ เหลือเก็บ ${money(s, left)}`, [bubble('สรุปรอบนี้', `ตั้งแต่ ${+start.slice(8)} ${TH_MONTHS[start.slice(5, 7) - 1]}`, body,
-    [{type: 'uri', label: 'เปิดแอป', uri: await appUrl(env, origin, u.id)}])]);
+    [{type: 'uri', label: 'เปิดแอป', uri: await appUrl(env, origin, u.id)}, {type: 'postback', label: 'รายงาน', data: 'report', displayText: 'รายงาน'}], character(origin, 'chart', '72px'))]);
+}
+
+const hasEntries = async (env, u, c) => !!await q(env, 'SELECT 1 FROM entries WHERE user_id = ? AND ts >= ? AND ts < ?', u.id, c.from, addDays(c.to, 1)).first();
+
+// รายงานประจำเดือน. off: which period, counted back from this one; left out, the last finished one if it has any entries, else this one.
+async function reportMsg(env, origin, u, off) {
+  const s = settings(u);
+  off ??= await hasEntries(env, u, cycleOf(s, -1)) ? -1 : 0;
+  const c = cycleOf(s, off), p = cycleOf(s, off - 1);
+  const [entries, categories] = await Promise.all([
+    all(env, 'SELECT ts, kind, amount, category_id, note FROM entries WHERE user_id = ? AND ts >= ? AND ts < ?', u.id, p.from, addDays(c.to, 1)),
+    all(env, 'SELECT id, kind, name, color, emoji FROM categories WHERE user_id = ? ORDER BY sort, id', u.id),
+  ]);
+  const r = globalThis.monthReport({entries, categories, from: c.from, to: c.to, prevFrom: p.from, prevTo: p.to, today: localNow(s).slice(0, 10), money: n => money(s, n), lang: 'th'});
+  const year = d => +d.slice(0, 4) + 543, short = d => `${+d.slice(8)} ${TH_MONTHS[d.slice(5, 7) - 1]}`;
+  const label = s.cycle_day === 1 ? `${TH_FULL_MONTHS[c.from.slice(5, 7) - 1]} ${year(c.from)}` : `${short(c.from)} – ${short(c.to)} ${year(c.to)}`;
+  const heading = text => T(text, {size: 'sm', weight: 'bold', color: INK, margin: 'lg'});
+  const saved = r.rate === null ? money(s, r.left) : `${money(s, r.left)} • ${r.rate}%`;
+  const body = [
+    {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [statBox(s, 'รวมรายจ่าย', r.expense, RED), statBox(s, 'รายรับทั้งหมด', r.income, GREEN)]},
+    {type: 'box', layout: 'vertical', spacing: 'sm', cornerRadius: 'lg', backgroundColor: '#F1F1F3', paddingAll: '12px', contents: [
+      T('เหลือเก็บ • อัตราการเก็บออม', {size: 'xs', color: GREY}),
+      T(saved, {size: 'xl', weight: 'bold', color: r.left < 0 ? RED : INK}),
+      {type: 'box', layout: 'vertical', height: '6px', cornerRadius: '3px', backgroundColor: '#35805A2E', contents: [
+        {type: 'box', layout: 'vertical', height: '6px', width: `${Math.max(1, Math.min(100, Math.round(r.rate ?? 0)))}%`, cornerRadius: '3px', backgroundColor: GREEN, contents: []},
+      ]},
+    ]},
+    ...(r.cats.length ? [heading('เงินหมดไปกับอะไร'), ...r.cats.slice(0, 5).map(x => catRow(s, categories.filter(k => k.kind === 'expense'), r.expense, x))] : []),
+    heading('บทวิเคราะห์'),
+    ...r.says.map(line => T('• ' + line, {size: 'sm', color: INK})),
+  ];
+  return flex(`รายงานประจำเดือน ${label}: รวมรายจ่าย ${money(s, r.expense)} รายรับทั้งหมด ${money(s, r.income)} เหลือเก็บ ${saved}`, [bubble('รายงานประจำเดือน', label, body,
+    [{type: 'uri', label: 'ดูในแอป', uri: await appUrl(env, origin, u.id, `&tab=report&rep=${c.from}`)}], character(origin, r.mood, '88px'))]);
 }
 
 // ---------- slip follow-up: ask the name, file it by that name, then show the saved card ----------
@@ -436,15 +497,49 @@ async function entryCard(env, origin, u, id) {
   e.colour = e.color || (e.ckind === 'income' ? INCOME_COLOUR : i >= 0 ? PAL[i % PAL.length] : '#A9A9B0');
   e.category ??= 'อื่นๆ';
   const s = settings(u);
-  return flex(`จด${e.kind === 'expense' ? 'รายจ่าย' : 'รายรับ'}แล้ว: ${e.note} ${money(s, e.amount)}`, [savedCard(s, e, await appUrl(env, origin, u.id, `&edit=${id}`))]);
+  return flex(`จด${e.kind === 'expense' ? 'รายจ่าย' : 'รายรับ'}แล้ว: ${e.note} ${money(s, e.amount)}`, [savedCard(origin, s, e, await appUrl(env, origin, u.id, `&edit=${id}`))]);
+}
+
+// Short all-capitals names that really are well-known brands, so vagueName leaves them alone.
+const KNOWN_SHORT = new Set(['KFC', 'MK', 'BTS', 'MRT', 'ARL', 'PTT', 'AIS', 'DTAC', 'TRUE', 'CP', 'OR', 'GAP', 'H&M', 'S&P', 'ZARA', 'IKEA', 'TOPS', 'BIG C', 'LOTUS', 'MAX', 'GRAB', 'LINE', 'MEA', 'PEA', 'MWA', 'PWA', '3BB', 'KTC', 'UOB', 'SCB', 'AIA', 'ZEN', 'MBK']);
+// The model can call anything on a slip a business, so names that say nothing about the place are caught here as well:
+// a code like QCS, a leading abbreviation like ก.กาแฟสด, a masked name or a bare number.
+function vagueName(name) {
+  const n = name.trim();
+  if (KNOWN_SHORT.has(n.toUpperCase())) return false;
+  return [...n].length < 3 || /^([ก-ฮ]{1,2}\.)+/.test(n) || /\*|x{3,}/i.test(n) || /^[\d\s-]+$/.test(n)
+    || (/^[A-Z0-9&.\-\s]{1,5}$/.test(n) && /[A-Z]/.test(n));
+}
+// Remembered per name on a slip: what the user called it last time, or the name itself once they said it is right.
+function rememberName(env, u, shown, chosen) {
+  const names = {...settings(u).names};
+  delete names[shown];  // re-added last, so the oldest is the first to go
+  names[shown] = chosen;
+  for (const k of Object.keys(names).slice(0, -100)) delete names[k];
+  return saveSettings(env, u, {names});
+}
+
+async function askName(env, origin, u, p) {
+  const s = settings(u), id = p.ids[0], last = p.shown && s.names?.[p.shown];
+  const question = p.shown ? `สลิปนี้จ่ายให้ “${p.shown}” ป้าไม่แน่ใจว่าเป็นชื่อร้านไหม รายการนี้คืออะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย` : 'สลิปนี้คือรายการอะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย';
+  const quickReply = {items: [
+    ...(typeof last === 'string' ? [{type: 'action', action: {type: 'message', label: last.slice(0, 20), text: last}}] : []),
+    ...(p.shown ? [{type: 'action', action: {type: 'postback', label: 'ใช้ชื่อนี้', data: `nameok:${id}`, displayText: `ใช้ชื่อ ${p.shown}`.slice(0, 300)}}] : []),
+    skip(`nameskip:${id}`),
+  ]};
+  if (s.confirm === 'text') return {...textMsg(question), quickReply};
+  const e = await q(env, 'SELECT amount FROM entries WHERE id = ? AND user_id = ?', id, u.id).first();
+  return {...flex(question, [{type: 'bubble', size: 'kilo', body: {type: 'box', layout: 'horizontal', spacing: 'md', paddingAll: '20px', backgroundColor: '#FFFFFF', alignItems: 'center', contents: [
+    {type: 'box', layout: 'vertical', flex: 1, spacing: 'sm', contents: [T(money(s, e?.amount ?? 0), {size: 'xl', weight: 'bold', color: INK}), T(question, {size: 'sm', color: INK})]},
+    character(origin, 'ask', '80px'),
+  ]}}]), quickReply};
 }
 
 // Ask the pending slip's name, or once it is named (or skipped), close the follow-up and show the saved card.
 async function nextStep(env, origin, u, done) {
   const p = {...settings(u).pending, ...done}, id = p.ids[0];
   await saveSettings(env, u, {pending: p.named ? null : p});
-  if (!p.named) return {...textMsg('สลิปนี้คือรายการอะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย'), quickReply: {items: [skip(`nameskip:${id}`)]}};
-  return entryCard(env, origin, u, id);
+  return p.named ? entryCard(env, origin, u, id) : askName(env, origin, u, p);
 }
 
 // File a named slip by its name: a name used before keeps that category (when memory is on), otherwise the fast model
@@ -474,6 +569,10 @@ async function postback(env, origin, u, data) {
     return meta.changes ? 'ลบแล้วจ้ะ' : 'ไม่พบรายการนี้แล้วจ้ะ';
   }
   if (action === 'nameskip' && mine) return nextStep(env, origin, u, {named: true});
+  if (action === 'nameok' && mine) {
+    if (slip.shown) await rememberName(env, u, slip.shown, slip.shown);
+    return nextStep(env, origin, u, {named: true});
+  }
   if (action === 'chskip' && /^\d+(,\d+)*$/.test(a)) return 'ได้จ้ะ ไม่ระบุช่องทางนะ';
   if (action === 'ch' && /^\d+(,\d+)*$/.test(a) && /^\d+$/.test(b)) {
     const chan = await q(env, 'SELECT name FROM channels WHERE id = ? AND user_id = ?', +b, u.id).first();
@@ -504,9 +603,13 @@ async function handleEvent(env, origin, ev, later = []) {
   const u = await getUser(env, ev.source.userId, true);
   await applyRecurring(env, u);
   later.push(() => ensureMenu(env, origin, u));
-  if (ev.type === 'follow') return [textMsg('สวัสดีจ้ะหลาน ป้าคีนจะช่วยจดรายรับรายจ่ายให้เอง\n' + HELP)];
+  if (ev.type === 'follow') {
+    return [flex('สวัสดีจ้ะหลาน ป้าคีนจะช่วยจดรายรับรายจ่ายให้เอง', [bubble('สวัสดีจ้ะหลาน', 'ป้าคีนจะช่วยจดรายรับรายจ่ายให้เอง', [T(HELP, {size: 'sm', color: INK})],
+      [{type: 'uri', label: 'เปิดแอป', uri: await appUrl(env, origin, u.id)}], character(origin, 'hello', '80px'))])];
+  }
   if (ev.type === 'postback') {
     if (ev.postback.data === 'sum') return [await summaryMsg(env, origin, u)];
+    if (ev.postback.data === 'report') return [await reportMsg(env, origin, u)];
     const reply = await postback(env, origin, u, ev.postback.data);
     return [typeof reply === 'string' ? textMsg(reply) : reply];
   }
@@ -515,9 +618,10 @@ async function handleEvent(env, origin, ev, later = []) {
   if (m.type === 'text') {
     const text = m.text.trim();
     if (text.startsWith('สรุป')) return [await summaryMsg(env, origin, u)];
+    if (/^รายงาน(ประจำเดือน|เดือนนี้|เดือนก่อน)?$/.test(text)) return [await reportMsg(env, origin, u, {'รายงานเดือนนี้': 0, 'รายงานเดือนก่อน': -1}[text])];
     if (text === 'แอป' || text === 'เปิดแอป') {
       return [flex('เปิดแอปป้าคีน', [bubble('ป้าคีน', 'ดูสรุป กราฟ งบ และแก้ไขรายการ', [T('ลิงก์นี้เป็นของหลานคนเดียว อย่าส่งต่อให้ใครนะจ๊ะ', {size: 'sm'})],
-        [{type: 'uri', label: 'เปิดแอป', uri: await appUrl(env, origin, u.id)}])])];
+        [{type: 'uri', label: 'เปิดแอป', uri: await appUrl(env, origin, u.id)}], character(origin, 'hello', '72px'))])];
     }
     if (text === 'ลบ') {
       const last = await q(env, 'SELECT id FROM entries WHERE user_id = ? ORDER BY id DESC LIMIT 1', u.id).first();
@@ -528,6 +632,7 @@ async function handleEvent(env, origin, ev, later = []) {
     if (slip && !slip.named) {
       await env.DB.batch(slip.ids.map(id => q(env, 'UPDATE entries SET note = ? WHERE id = ? AND user_id = ?', text.slice(0, 100), id, u.id)));
       await categoriseByName(env, u, slip.ids[0], text.slice(0, 100));
+      if (slip.shown) await rememberName(env, u, slip.shown, text.slice(0, 100));
       return [await nextStep(env, origin, u, {named: true})];
     }
     parts = [{text}];
@@ -549,11 +654,13 @@ async function handleEvent(env, origin, ev, later = []) {
     let cash = e.kind === 'expense' && await q(env, "SELECT id FROM channels WHERE user_id = ? AND type = 'cash' ORDER BY id LIMIT 1", u.id).first();
     if (e.kind === 'expense' && !cash) cash = {id: (await q(env, "INSERT INTO channels (user_id, name, type) VALUES (?, 'เงินสด', 'cash')", u.id).run()).meta.last_row_id};
     await q(env, 'UPDATE entries SET channel_id = ? WHERE id = ? AND user_id = ?', cash ? cash.id : null, e.id, u.id).run();
-    if (e.party === 'business' && e.note) {  // a shop's or restaurant's name is name enough
+    const named = ['business', 'unclear'].includes(e.party) && e.note;
+    // a clear shop or restaurant name is name enough, and so is one the user has already said is right
+    if (named && (settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)))) {
       if (pendingOf(u)) await saveSettings(env, u, {pending: null});  // an earlier slip's question would take the next message
       return [await entryCard(env, origin, u, e.id)];
     }
-    await saveSettings(env, u, {pending: {ids: [e.id], until: Date.now() + 10 * 60e3}});
+    await saveSettings(env, u, {pending: {ids: [e.id], until: Date.now() + 10 * 60e3, ...(named ? {shown: e.note} : {})}});
     return [await nextStep(env, origin, u, {})];
   }
   return saved.length ? confirm(env, origin, u, saved) : [textMsg(HELP)];
@@ -601,9 +708,15 @@ async function remind(env) {
     const origin = settings(u).menu_origin || env.APP_ORIGIN;
     if (origin) await ensureMenu(env, origin, u).catch(console.error);
     const s = settings(u), now = localNow(s), today = now.slice(0, 10);
+    // the first days of a new period (in case a run is missed), at the reminder time or else 09:00: last period's report
+    const c = cycleOf(s);
+    if (origin && s.report && today <= addDays(c.from, 2) && (today > c.from || now.slice(11) >= (s.remind || '09:00')) && s.last_report !== c.from) {
+      await saveSettings(env, u, {last_report: c.from});
+      if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
+    }
     if (!s.remind || now.slice(11) < s.remind || s.last_remind === today) continue;
     await q(env, 'UPDATE users SET settings = ? WHERE id = ?', JSON.stringify({...JSON.parse(u.settings), last_remind: today}), u.id).run();
-    if (!await q(env, 'SELECT 1 FROM entries WHERE user_id = ? AND ts LIKE ?', u.id, today + '%').first()) {
+    if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
     }
   }
@@ -641,7 +754,7 @@ const TABLES = {
 };
 const SETTINGS = {
   memory: vBool, track_channel: vBool, theme: vChoice('auto', 'light', 'dark'), confirm: vChoice('card', 'text'), remind: vRemind, lang: vChoice('th', 'en'),
-  currency: v => vName(v).slice(0, 3), tz: vTz, cycle_day: vDay,
+  currency: v => vName(v).slice(0, 3), tz: vTz, cycle_day: vDay, report: vBool,
 };
 const validated = (rules, body) => Object.fromEntries(Object.entries(body).filter(([k]) => Object.hasOwn(rules, k)).map(([k, v]) => [k, rules[k](v)]));
 
