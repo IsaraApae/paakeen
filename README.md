@@ -50,7 +50,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 | วิเคราะห์ | Six months of income and expense bars; daily bars for spending or income with the daily spending average; spending by category for any month or all time |
 | หมวดหมู่ | Add, rename, recolour and reorder categories, and give each one an emoji; set the day each period starts |
 | รายการ | Every entry, filtered by type, period and category (only categories used in that period, biggest spend first); select several to recategorise or delete; export to Excel or CSV |
-| ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, theme (light, dark or match device), Thai or English, currency, time zone |
+| ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, the monthly report on or off, theme (light, dark or match device), Thai or English, currency, time zone |
 
 <p>
   <img src="docs/entries.jpg" width="200" alt="รายการ">
@@ -63,7 +63,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 
 - `src/index.js`: one Cloudflare Worker handles the LINE webhook (with signature check), calls Gemini, stores data in D1, serves the web app's API, and runs a cron every 5 minutes for reminders and chat-menu refreshes.
 - `public/index.html`: the web app, a single file with no build step (Chart.js and SheetJS load from a CDN).
-- **Gemini:** typed messages try the fastest model first, while slips, voice notes and PDFs try the strongest. If a model is busy or out of free quota, the next one in the list is used. Both lists are in `wrangler.toml`.
+- **Gemini:** typed messages, slips, voice notes and PDFs all try the fastest model first. If a model is busy or out of free quota, the next one in the list is used, and if it is slow, the next one is started alongside it. Both lists are in `wrangler.toml`.
 - **Privacy:** only 1:1 chats are read, never group chats. Each user's web app link is signed and expires.
 - `public/report.js`: the monthly report's numbers and analysis, one copy used by both the web app and the worker. The analysis is written by rules, so it costs no AI quota.
 - `public/chars/*.png`: the hamsters for the LINE cards, one per mood (© shiba, used with permission). After replacing one, bump `CHAR_VERSION` in `src/index.js`, because LINE caches images by address.
