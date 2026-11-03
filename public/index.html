@@ -11,6 +11,15 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">  <!-- iPhone browsers take the page icon from this -->
 <link rel="manifest" href="/manifest.webmanifest">
+<script>
+// The data is asked for first thing, while the rest of this page and report.js still arrive, instead of after them
+// (LINE opens the app cold each time, so every step in that chain was a wait). load() picks up this answer.
+const hash = new URLSearchParams(location.hash.slice(1));
+let token = hash.get('t');
+try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t'); } catch {}
+let early = token && fetch('/api/state', {headers: {Authorization: 'Bearer ' + token}});
+</script>
+<link rel="preload" href="/report.js" as="script">  <!-- its tag is at the end of this long page, found only once nearly all of it is in -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
 <style>
@@ -89,7 +98,9 @@ button:disabled { opacity: .3; }
 .kbd :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }  /* only once Tab has been used */
 dialog :is(b, input):focus { outline: none; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-canvas { max-width: 100%; }
+/* Chart.js often arrives after the numbers; until then each chart's canvas already has the size it will be drawn at
+   (chart() sets its shape), so the list under it doesn't jump down when the chart appears */
+canvas { display: block; width: 100%; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .expense { color: var(--expense-text); } .income { color: var(--income-text); }
 .sub { font-size: 13px; color: var(--label2); }
@@ -308,9 +319,6 @@ dialog .group { background: var(--surface); }
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-const hash = new URLSearchParams(location.hash.slice(1));
-let token = hash.get('t');
-try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t'); } catch {}
 if (location.hash) history.replaceState(null, '', location.pathname + location.search);  // keep the token out of the address bar and history
 onhashchange = () => location.reload();  // a fresh link tapped while the app is already open
 
@@ -475,7 +483,7 @@ function translate(root) {
 }
 function chart(id, type, labels, datasets, options = {}, plugins = []) {
   if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options, plugins})));
-  return `<canvas id="${id}"></canvas>`;
+  return `<canvas id="${id}" style="aspect-ratio:${options.aspectRatio || (type === 'doughnut' ? 1 : 2)}"></canvas>`;  // Chart.js's default shapes
 }
 // Chart.js's own slice spacing leaves uneven gaps (small slices nearly touch, the one at the top looks wider), so the
 // slices are drawn here: each side runs parallel to the slice's edge, half a gap in, so every gap is the same width
@@ -708,7 +716,9 @@ const entryBody = r => ({amount: +r.amount, note: r.note, kind: r.kind, category
 
 // ---------- data + navigation ----------
 async function api(method, path, body) {
-  const r = await fetch('/api/' + path, {method, headers: {Authorization: 'Bearer ' + token}, body: body && JSON.stringify(body)});
+  const req = early && path === 'state' ? early : fetch('/api/' + path, {method, headers: {Authorization: 'Bearer ' + token}, body: body && JSON.stringify(body)});
+  early = null;  // the request from <head> answers the first load() only
+  const r = await req;
   if (r.status === 401) {
     try { localStorage.removeItem(CACHE); } catch {}
     $('#main').innerHTML = '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>';

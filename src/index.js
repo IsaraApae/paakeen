@@ -288,11 +288,14 @@ function snap(note, text) {
   return best && dist <= a.length * 0.4 ? best : note;
 }
 
+// The user's categories and payment channels, which a message's entries are filed under.
+const readLists = (env, uid) => Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', uid),
+  all(env, 'SELECT * FROM channels WHERE user_id = ? ORDER BY id', uid)]);
+
 // Ask the model for entries, validate them, save them. Returns the saved entries.
-async function record(env, u, parts) {
+async function record(env, u, parts, cats, chans) {
   const s = settings(u), now = localNow(s);
-  const [cats, chans] = await Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', u.id),
-    s.track_channel ? all(env, 'SELECT * FROM channels WHERE user_id = ?', u.id) : []]);
+  if (!s.track_channel) chans = [];
   const names = kind => cats.filter(c => c.kind === kind).map(c => c.name).join(', ');
   const system = 'Extract income/expense entries from the user\'s message, photo, voice note or PDF (Thai or English). '
     + 'One entry per item; amount is a positive number. `note` is a short label for the item or shop. '
@@ -395,16 +398,15 @@ function savedCard(origin, s, e, editUrl) {
   };
 }
 
-async function confirm(env, origin, u, saved, skipChannels) {
+async function confirm(env, origin, u, saved, chans) {
   const s = settings(u), colour = e => e.kind === 'expense' ? RED : GREEN;
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note} (${e.category})`;
   const msgs = [s.confirm === 'text'
     ? textMsg('จดแล้วจ้ะ\n' + saved.map(line).join('\n'))
     : flex('จดสำเร็จ: ' + saved.map(line).join(', '), await Promise.all(saved.map(async e => savedCard(origin, s, e,
       await appUrl(env, origin, u.id, `&edit=${e.id}`)))))];
-  const chans = s.track_channel && !skipChannels ? await all(env, 'SELECT * FROM channels WHERE user_id = ?', u.id) : [];
   const unknown = saved.filter(e => !e.channel && e.kind === 'expense').map(e => e.id).join(',');  // income never has a payment channel
-  if (chans.length && unknown) {
+  if (s.track_channel && chans.length && unknown) {
     msgs.push({...textMsg('จ่ายด้วยช่องทางไหนจ๊ะ?'), quickReply: {items: [...chans.map(c => ({
       type: 'action', action: {type: 'postback', label: c.name.slice(0, 20), data: `ch:${unknown}:${c.id}`.slice(0, 300), displayText: c.name},
     })), skipButton(unknown)]}});
@@ -432,11 +434,11 @@ const catRow = (s, cats, sum, r) => {
 
 async function summaryMsg(env, origin, u) {
   const s = settings(u), start = cycleOf(s).from;
-  const rows = await all(env, `SELECT e.kind, COALESCE(c.name, 'อื่นๆ') AS name, SUM(e.amount) AS total FROM entries e
-    LEFT JOIN categories c ON c.id = e.category_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start);
+  const [rows, cats] = await Promise.all([all(env, `SELECT e.kind, COALESCE(c.name, 'อื่นๆ') AS name, SUM(e.amount) AS total FROM entries e
+    LEFT JOIN categories c ON c.id = e.category_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start),
+    all(env, "SELECT name, color, emoji FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id)]);
   const total = kind => rows.filter(r => r.kind === kind).reduce((a, r) => a + r.total, 0);
   const left = total('income') - total('expense');
-  const cats = await all(env, "SELECT name, color, emoji FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id);
   const body = [
     {type: 'box', layout: 'vertical', contents: [T('เหลือเก็บ', {size: 'xs', color: GREY}), T(money(s, left), {size: 'xxl', weight: 'bold', color: INK})]},
     {type: 'box', layout: 'horizontal', spacing: 'sm', contents: [statBox(s, 'รายรับ', total('income'), GREEN), statBox(s, 'รายจ่าย', total('expense'), RED)]},
@@ -489,10 +491,10 @@ const skipButton = ids => skip(`chskip:${ids}`);
 
 // The saved card for one entry as it is now in the database.
 async function entryCard(env, origin, u, id) {
-  const e = await q(env, `SELECT e.*, c.name AS category, c.color, c.emoji, c.kind AS ckind, ch.name AS channel FROM entries e
-    LEFT JOIN categories c ON c.id = e.category_id LEFT JOIN channels ch ON ch.id = e.channel_id WHERE e.id = ? AND e.user_id = ?`, id, u.id).first();
+  const [e, expenseCats] = await Promise.all([q(env, `SELECT e.*, c.name AS category, c.color, c.emoji, c.kind AS ckind, ch.name AS channel FROM entries e
+    LEFT JOIN categories c ON c.id = e.category_id LEFT JOIN channels ch ON ch.id = e.channel_id WHERE e.id = ? AND e.user_id = ?`, id, u.id).first(),
+    all(env, "SELECT id FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id)]);
   if (!e) return textMsg('ไม่พบรายการนี้แล้วจ้ะ');
-  const expenseCats = await all(env, "SELECT id FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id);
   const i = expenseCats.findIndex(c => c.id === e.category_id);
   e.colour = e.color || (e.ckind === 'income' ? INCOME_COLOUR : i >= 0 ? PAL[i % PAL.length] : '#A9A9B0');
   e.category ??= 'อื่นๆ';
@@ -600,8 +602,12 @@ async function handleEvent(env, origin, ev, later = []) {
   // a slip, voice note or PDF starts downloading straight away, alongside the user lookup
   const download = media ? lineApi(env, `/v2/bot/message/${m.id}/content`, null, env.LINE_DATA_API || 'https://api-data.line.me') : null;
   download?.catch(() => {});  // handled where it's awaited
-  const u = await getUser(env, ev.source.userId, true);
-  await applyRecurring(env, u);
+  // the user, their recurring entries and, for a message, the categories and channels it is filed under are read at the
+  // same time: one wait for the database before the model is asked instead of three
+  const lists = ev.type === 'message' ? readLists(env, ev.source.userId) : null;
+  lists?.catch(() => {});  // handled where it's awaited
+  const [u, recurring] = await Promise.all([getUser(env, ev.source.userId, true), all(env, 'SELECT * FROM recurring WHERE user_id = ?', ev.source.userId)]);
+  await applyRecurring(env, u, recurring);
   later.push(() => ensureMenu(env, origin, u));
   if (ev.type === 'follow') {
     return [flex('สวัสดีจ้ะหลาน ป้าคีนจะช่วยจดรายรับรายจ่ายให้เอง', [bubble('สวัสดีจ้ะหลาน', 'ป้าคีนจะช่วยจดรายรับรายจ่ายให้เอง', [T(HELP, {size: 'sm', color: INK})],
@@ -647,11 +653,13 @@ async function handleEvent(env, origin, ev, later = []) {
   } else {
     return [textMsg(HELP)];
   }
-  const saved = await record(env, u, parts);
+  let [cats, chans] = await lists;
+  if (!cats.length) [cats, chans] = await readLists(env, u.id);  // a user getUser has only just added had none yet
+  const saved = await record(env, u, parts, cats, chans);
   console.log(JSON.stringify({recorded: m.type, entries: saved.length, ms: Date.now() - t0}));
   if (m.type === 'image' && saved.length === 1) {  // a slip: paid in cash; ask the name (unless it went to a shop), then show the card
     const e = saved[0];
-    let cash = e.kind === 'expense' && await q(env, "SELECT id FROM channels WHERE user_id = ? AND type = 'cash' ORDER BY id LIMIT 1", u.id).first();
+    let cash = e.kind === 'expense' && chans.find(c => c.type === 'cash');
     if (e.kind === 'expense' && !cash) cash = {id: (await q(env, "INSERT INTO channels (user_id, name, type) VALUES (?, 'เงินสด', 'cash')", u.id).run()).meta.last_row_id};
     await q(env, 'UPDATE entries SET channel_id = ? WHERE id = ? AND user_id = ?', cash ? cash.id : null, e.id, u.id).run();
     const named = ['business', 'unclear'].includes(e.party) && e.note;
@@ -660,10 +668,11 @@ async function handleEvent(env, origin, ev, later = []) {
       if (pendingOf(u)) await saveSettings(env, u, {pending: null});  // an earlier slip's question would take the next message
       return [await entryCard(env, origin, u, e.id)];
     }
-    await saveSettings(env, u, {pending: {ids: [e.id], until: Date.now() + 10 * 60e3, ...(named ? {shown: e.note} : {})}});
-    return [await nextStep(env, origin, u, {})];
+    const p = {ids: [e.id], until: Date.now() + 10 * 60e3, ...(named ? {shown: e.note} : {})};
+    await saveSettings(env, u, {pending: p});
+    return [await askName(env, origin, u, p)];
   }
-  return saved.length ? confirm(env, origin, u, saved) : [textMsg(HELP)];
+  return saved.length ? confirm(env, origin, u, saved, chans) : [textMsg(HELP)];
 }
 
 async function webhook(request, env, ctx) {
@@ -679,6 +688,7 @@ async function webhook(request, env, ctx) {
         let msgs;
         const later = [];
         try {
+          await init(env);  // only now, so the dots above don't wait for a new instance's schema check
           msgs = await handleEvent(env, origin, ev, later);
         } catch (e) {
           console.error(e);
@@ -758,17 +768,20 @@ const SETTINGS = {
 };
 const validated = (rules, body) => Object.fromEntries(Object.entries(body).filter(([k]) => Object.hasOwn(rules, k)).map(([k, v]) => [k, rules[k](v)]));
 
-// The whole web API. Throws Bad on a bad request.
-async function api(env, u, method, path, body) {
+// Everything the web app shows, in one trip to the database.
+async function readState(env, uid) {
+  const rows = (table, order = 'id') => q(env, `SELECT * FROM ${table} WHERE user_id = ? ORDER BY ${order}`, uid);
+  // ponytail: ships every entry and the browser does the maths; paginate once a user passes ~20k rows
+  return (await env.DB.batch([rows('categories', 'sort, id'), rows('channels'), rows('recurring'), rows('entries', 'ts DESC, id DESC')])).map(r => r.results);
+}
+
+// The whole web API. Throws Bad on a bad request. state: readState() already under way, for /api/state.
+async function api(env, u, method, path, body, state) {
   need(body && typeof body === 'object' && !Array.isArray(body));
   const uid = u.id;
   if (method === 'GET' && path.join('/') === 'state') {
-    const rows = (table, order = 'id') => q(env, `SELECT * FROM ${table} WHERE user_id = ? ORDER BY ${order}`, uid);
-    // ponytail: ships every entry and the browser does the maths; paginate once a user passes ~20k rows
-    const read = async () => (await env.DB.batch(
-      [rows('categories', 'sort, id'), rows('channels'), rows('recurring'), rows('entries', 'ts DESC, id DESC')])).map(r => r.results);
-    let [categories, channels, recurring, entries] = await read();
-    if (await applyRecurring(env, u, recurring)) [categories, channels, recurring, entries] = await read();
+    let [categories, channels, recurring, entries] = await (state || readState(env, uid));
+    if (await applyRecurring(env, u, recurring)) [categories, channels, recurring, entries] = await readState(env, uid);
     return {user: {name: u.name, picture: u.picture}, settings: settings(u), categories, channels, recurring, entries};
   }
   if (method === 'PUT' && path.join('/') === 'settings') {
@@ -805,10 +818,14 @@ export default {
     const url = new URL(request.url);
     // without the secrets, signatures and app links would be signed with a guessable key
     if (!env.LINE_CHANNEL_SECRET || !env.LINE_CHANNEL_ACCESS_TOKEN || !env.GEMINI_API_KEY) return new Response('secrets not set', {status: 503});
-    await init(env);
+    // the webhook answers LINE and starts the typing dots first, and checks the schema before its own work
     if (request.method === 'POST' && url.pathname === '/webhook') return webhook(request, env, ctx);
+    await init(env);
     if (!url.pathname.startsWith('/api/')) return new Response('not found', {status: 404});
     const uid = await checkToken(env, (request.headers.get('Authorization') || '').replace(/^Bearer /, ''));
+    // opening the app reads its data alongside the user: one wait for the database instead of two
+    const state = uid && request.method === 'GET' && url.pathname === '/api/state' ? readState(env, uid) : null;
+    state?.catch(() => {});  // handled in api()
     const u = uid && await getUser(env, uid);
     if (!u) return new Response(null, {status: 401});
     // opening the app also refreshes the chat menu, so it does not depend on the user sending a message
@@ -816,7 +833,7 @@ export default {
     try {
       const text = await request.text();
       need(text.length < 1_000_000);
-      return Response.json(await api(env, u, request.method, url.pathname.slice(5).split('/'), text ? JSON.parse(text) : {}));
+      return Response.json(await api(env, u, request.method, url.pathname.slice(5).split('/'), text ? JSON.parse(text) : {}, state));
     } catch (e) {
       if (e instanceof Bad || e instanceof SyntaxError) return new Response(null, {status: 400});
       throw e;
