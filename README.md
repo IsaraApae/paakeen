@@ -3,10 +3,11 @@
 A LINE chatbot that records income and expenses, with a web app for summaries and charts. Type "กาแฟ 60", or send a slip, a voice note or a PDF, and ป้าคีน records it. Everything runs on free tiers: Cloudflare Workers with a D1 database, and Gemini's free API.
 
 <p>
-  <img src="docs/summary.jpg" width="200" alt="สรุป">
-  <img src="docs/report.jpg" width="200" alt="รายงานประจำเดือน">
-  <img src="docs/analysis-daily.jpg" width="200" alt="วิเคราะห์ รายวัน">
-  <img src="docs/summary-dark.jpg" width="200" alt="สรุป in dark mode">
+  <img src="docs/summary.jpg" width="400" alt="สรุป, light and dark">
+  <img src="docs/report.jpg" width="400" alt="รายงานประจำเดือน, light and dark">
+</p>
+<p>
+  <img src="docs/analysis-daily.jpg" width="400" alt="วิเคราะห์ รายวัน, light and dark">
 </p>
 
 ## รายงานประจำเดือน
@@ -15,7 +16,7 @@ Every period gets a report: รวมรายจ่าย, รายรับ�
 
 <p>
   <img src="docs/line-report.jpg" width="200" alt="The report card in LINE">
-  <img src="docs/report-analysis.jpg" width="200" alt="บทวิเคราะห์ in the web app">
+  <img src="docs/report-analysis.jpg" width="400" alt="บทวิเคราะห์ in the web app, light and dark">
 </p>
 
 ## In the LINE chat
@@ -53,10 +54,12 @@ Opened from the chat menu with a personal signed link. No password needed.
 | ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, the monthly report on or off, theme (light, dark or match device), Thai or English, currency, time zone |
 
 <p>
-  <img src="docs/entries.jpg" width="200" alt="รายการ">
-  <img src="docs/analysis-monthly.jpg" width="200" alt="วิเคราะห์ รายเดือน">
-  <img src="docs/categories.jpg" width="200" alt="หมวดหมู่">
-  <img src="docs/edit-entry.jpg" width="200" alt="แก้ไขรายการ">
+  <img src="docs/entries.jpg" width="400" alt="รายการ, light and dark">
+  <img src="docs/analysis-monthly.jpg" width="400" alt="วิเคราะห์ รายเดือน, light and dark">
+</p>
+<p>
+  <img src="docs/categories.jpg" width="400" alt="หมวดหมู่, light and dark">
+  <img src="docs/edit-entry.jpg" width="400" alt="แก้ไขรายการ, light and dark">
 </p>
 
 ## How it works
