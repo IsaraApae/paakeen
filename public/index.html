@@ -225,6 +225,7 @@ nav { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, 1fr
 .selecting .dock { display: none; }
 nav button { padding: 6px 0 5px; border-radius: 999px; color: var(--label); font-size: 11px; font-weight: 500; display: grid; justify-items: center; gap: 1px; transition: background .25s; }
 nav button.on { color: var(--red); font-weight: 600; }
+@media (max-width: 359px) { nav button { font-size: 10px; } }  /* 320px phones: วิเคราะห์ and หมวดหมู่ ran into each other at 11px */
 nav svg { width: 24px; height: 24px; stroke-width: 1.8; }
 
 /* dialogs: a glass sheet for entries, a compact glass alert for one value or a confirmation */
