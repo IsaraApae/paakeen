@@ -33,8 +33,11 @@ let early = token && fetch('/api/state', {headers: {Authorization: 'Bearer ' + t
 early && early.catch(() => {});  // no connection: api() reports it when load() asks for this answer
 </script>
 <link rel="preload" href="/report.js" as="script">  <!-- its tag is at the end of this long page, found only once nearly all of it is in -->
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
-<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>  <!-- crossorigin: the scripts below load in that mode, for their integrity check -->
+<!-- async: the page and data load alongside it. integrity: the browser refuses the file if the CDN ever serves anything else
+     (the page holds the login link and every entry); take a new version's hash from cdnjs.com along with its address -->
+<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js"
+  integrity="sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==" crossorigin="anonymous"></script>
 <style>
 /* Solid white cards with soft shadows on a plain background; the red gradient is kept for the + button */
 :root {
@@ -899,7 +902,8 @@ async function exportCsv() {
   } else {
     // the spreadsheet library is only loaded when someone asks for Excel; cells stay plain text or numbers, never formulas
     if (!window.XLSX) await new Promise((ok, fail) => document.head.append(Object.assign(document.createElement('script'),
-      {src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.mini.min.js', onload: ok, onerror: () => fail(toast(L('โหลดตัวสร้างไฟล์ Excel ไม่ได้ ลองใหม่หรือเลือก CSV', 'Could not load the Excel maker. Try again or pick CSV.')))})));
+      {src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.mini.min.js', crossOrigin: 'anonymous',
+        integrity: 'sha512-NDQhXrK2pOCL18FV5/Nc+ya9Vz+7o8dJV1IGRwuuYuRMFhAR0allmjWdZCSHFLDYgMvXKyN2jXlSy2JJEmq+ZA==', onload: ok, onerror: () => fail(toast(L('โหลดตัวสร้างไฟล์ Excel ไม่ได้ ลองใหม่หรือเลือก CSV', 'Could not load the Excel maker. Try again or pick CSV.')))})));
     const book = XLSX.utils.book_new(), sheet = XLSX.utils.aoa_to_sheet(rows);
     sheet['!cols'] = cols.map(c => ({wch: c[0] === 'note' ? 28 : 14}));
     XLSX.utils.book_append_sheet(book, sheet, 'ป้าคีน');
