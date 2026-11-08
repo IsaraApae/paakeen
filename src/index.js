@@ -435,7 +435,7 @@ const catRow = (s, cats, sum, r) => {
 async function summaryMsg(env, origin, u) {
   const s = settings(u), start = cycleOf(s).from;
   const [rows, cats] = await Promise.all([all(env, `SELECT e.kind, COALESCE(c.name, 'อื่นๆ') AS name, SUM(e.amount) AS total FROM entries e
-    LEFT JOIN categories c ON c.id = e.category_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start),
+    LEFT JOIN categories c ON c.id = e.category_id AND c.user_id = e.user_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start),
     all(env, "SELECT name, color, emoji FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id)]);
   const total = kind => rows.filter(r => r.kind === kind).reduce((a, r) => a + r.total, 0);
   const left = total('income') - total('expense');
@@ -492,7 +492,8 @@ const skipButton = ids => skip(`chskip:${ids}`);
 // The saved card for one entry as it is now in the database.
 async function entryCard(env, origin, u, id) {
   const [e, expenseCats] = await Promise.all([q(env, `SELECT e.*, c.name AS category, c.color, c.emoji, c.kind AS ckind, ch.name AS channel FROM entries e
-    LEFT JOIN categories c ON c.id = e.category_id LEFT JOIN channels ch ON ch.id = e.channel_id WHERE e.id = ? AND e.user_id = ?`, id, u.id).first(),
+    LEFT JOIN categories c ON c.id = e.category_id AND c.user_id = e.user_id LEFT JOIN channels ch ON ch.id = e.channel_id AND ch.user_id = e.user_id
+    WHERE e.id = ? AND e.user_id = ?`, id, u.id).first(),
     all(env, "SELECT id FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id)]);
   if (!e) return textMsg('ไม่พบรายการนี้แล้วจ้ะ');
   const i = expenseCats.findIndex(c => c.id === e.category_id);
@@ -792,6 +793,10 @@ async function api(env, u, method, path, body, state) {
   need(Object.hasOwn(TABLES, table) && !extra.length);
   const [columns, required] = TABLES[table];
   const vals = validated(columns, body), keys = Object.keys(vals);
+  // a category or channel id must be one of the user's own; another user's would put its name on this user's LINE cards
+  await Promise.all([['category_id', 'categories'], ['channel_id', 'channels']].map(async ([key, owner]) => {
+    if (vals[key] != null) need(await q(env, `SELECT 1 FROM ${owner} WHERE id = ? AND user_id = ?`, vals[key], uid).first());
+  }));
   if (method === 'POST' && id === undefined) {
     need(required.every(k => k in vals));
     if (table === 'channels') need((await q(env, 'SELECT COUNT(*) AS n FROM channels WHERE user_id = ?', uid).first()).n < 10);

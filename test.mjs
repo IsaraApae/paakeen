@@ -151,6 +151,11 @@ try {
   await api(t2, 'PUT', `entries/${coffee.id}`, {amount: 1});
   assert.equal((await api(t2, 'GET', 'state')).entries.length, 0);
   assert.equal((await api(t1, 'GET', 'state')).entries.find(e => e.id === coffee.id).amount, 60);
+  // nor can another user's category or payment channel be put on an entry or a recurring entry
+  const other = await api(t2, 'GET', 'state');
+  assert.equal(await api(t1, 'PUT', `entries/${coffee.id}`, {category_id: other.categories[0].id}), 400);
+  assert.equal(await api(t1, 'PUT', `entries/${coffee.id}`, {channel_id: other.channels[0].id}), 400);
+  assert.equal(await api(t1, 'POST', 'recurring', {kind: 'expense', amount: 1, freq: 'daily', start: new Date().toISOString().slice(0, 10), category_id: other.categories[0].id}), 400);
   assert.equal(await api(t1, 'PUT', 'settings', {cycle_day: 32}), 400);
   assert.deepEqual(await api(t1, 'PUT', 'settings', {cycle_day: 31}), {});
   assert.equal((await say('สรุป'))[0].type, 'flex');  // a day-31 cycle still resolves in a 30-day month
