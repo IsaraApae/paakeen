@@ -81,3 +81,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 2. `npx wrangler d1 create paakeen`, then put the database id in `wrangler.toml`, and set `APP_ORIGIN` to your worker's URL.
 3. `npx wrangler secret put LINE_CHANNEL_SECRET`, then the same for `LINE_CHANNEL_ACCESS_TOKEN` and `GEMINI_API_KEY`.
 4. `npx wrangler deploy`, then set the LINE webhook URL to `https://<your worker>/webhook`.
+
+## License
+
+The code is under the [MIT License](LICENSE). The hamster pictures are not: `public/chars/*.png`, `docs/characters.png` and the hamsters in `docs/line-cards.jpg` and `docs/line-report.jpg` are from [silly hamsters](https://store.line.me/stickershop/product/31413469/en) by shiba, © shiba, used here with permission, and may not be reused without shiba's own permission.
