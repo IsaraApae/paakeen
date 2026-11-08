@@ -23,11 +23,14 @@ Every period gets a report: รวมรายจ่าย, รายรับ�
 
 ## In the LINE chat
 
-Cards in the chat carry a hamster with a mood to match: typing an entry in, overjoyed at income, suspicious of a slip, or crying over an overspent month. The web app stays plain, without the hamster.
+The cards and the chat menu are drawn in the web app's style: its white cards, grey boxes, category badges and red buttons, and the menu carries the app's own + button and menu bar. Cards also carry a hamster with a mood to match: typing an entry in, overjoyed at income, suspicious of a slip, or crying over an overspent month. The web app stays plain, without the hamster.
 
 <p>
   <img src="docs/line-cards.jpg" width="200" alt="LINE cards: a slip question and saved entries">
   <img src="docs/characters.png" width="420" alt="The eight hamsters">
+</p>
+<p>
+  <img src="public/menu.jpg" width="420" alt="The chat menu: จดรายการ, สรุปในแชต, วิธีใช้ and the app's five tabs">
 </p>
 
 The hamsters are from [silly hamsters](https://store.line.me/stickershop/product/31413469/en) by shiba. Characters © shiba, used with permission.
@@ -39,7 +42,7 @@ The hamsters are from [silly hamsters](https://store.line.me/stickershop/product
 - **Payment channels (optional):** cash and credit cards. The bot asks which one only when it can't tell.
 - **รายงานประจำเดือน:** รวมรายจ่าย, รายรับทั้งหมด, เหลือเก็บ • อัตราการเก็บออม, เงินหมดไปกับอะไร and บทวิเคราะห์. It arrives by itself when a new period starts (at your reminder time, or 09:00; can be turned off in settings).
 - **Commands:** "สรุป" for this period's totals, "รายงาน" for the last finished period's report ("รายงานเดือนนี้" for this one, "รายงานเดือนก่อน" for the last), "ลบ" to delete the last entry, "แอป" for a link to the web app.
-- **Chat menu:** tiles under the chat open each tab of the web app.
+- **Chat menu:** under the chat, จดรายการ opens a new entry in the web app, สรุปในแชต and วิธีใช้ answer in the chat, and the bar along the bottom opens each of the app's five tabs.
 - **Daily reminder:** a message at your chosen time on days with nothing recorded.
 - **Recurring entries:** daily, weekly or monthly, added automatically.
 
@@ -74,7 +77,7 @@ Opened from the chat menu with a personal signed link. No password needed.
 - `public/categories.js`: the category colours and the built-in categories' emoji, shared the same way, so the LINE cards and the web app always match.
 - `public/chars/*.png`: the hamsters for the LINE cards, one per mood (© shiba, used with permission). After replacing one, bump `CHAR_VERSION` in `src/index.js`, because LINE caches images by address.
 - **Speed:** the tables are indexed per user, so a query reads only that user's rows, which also keeps D1's free daily reads for real use. Reads that don't depend on each other go to D1 together rather than one after another, and the web app asks for its data from the top of the page, so it doesn't wait for the rest of the page first. It draws the page once when it opens, and when Chart.js arrives it draws only the charts, on canvases already sized for them.
-- `make-menu.py`: draws the chat menu image (`public/menu.jpg`, macOS only).
+- `make-menu.py`: draws the chat menu as `menu-source.svg` on any system, and on macOS also renders it to `public/menu.jpg`; elsewhere, render the SVG with a headless browser (see the script's note). Its tile boxes must match `MENU_TILES` in `src/index.js`, and `MENU_VERSION` there is bumped with every new menu.
 - `test.mjs`: an end-to-end check that runs the worker locally against a mock LINE and Gemini (`npm test`).
 - `seed.mjs`: fills a local `wrangler dev` with a test user and a few months of sample entries, and prints a link to open the web app as that user (`npm run seed`).
 - `check.mjs`: a syntax check of the worker, the scripts and the web app's inline scripts (`npm run check`, which then bundles the worker without deploying).
