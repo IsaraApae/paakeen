@@ -194,9 +194,10 @@ const lineApi = (env, path, body, host = env.LINE_API || 'https://api.line.me') 
 
 // The tile menu under the chat. Each tile's position matches the artwork in public/menu.jpg (drawn from menu-source.svg).
 // 'add' and 'tab:*' tiles open the web app, the others are answered in the chat.
-const MENU_VERSION = 5;  // bump when the artwork or the tiles change, so every user's menu is rebuilt
-const MENU_TILES = [[60, 60, 1380, 1000, 'add'], [1500, 60, 440, 470, 'tab:sum'], [2000, 60, 440, 470, 'tab:ana'], [1500, 590, 440, 470, 'tab:bud'],
-  [2000, 590, 440, 470, 'tab:list'], [60, 1120, 1380, 506, 'sum'], [1500, 1120, 440, 506, 'tab:set'], [2000, 1120, 440, 506, 'help']];  // boxes from make-menu.py
+const MENU_VERSION = 6;  // bump when the artwork or the tiles change, so every user's menu is rebuilt
+// boxes from make-menu.py: the + and the two chat tiles, then the app's five tabs along the bottom bar
+const MENU_TILES = [[60, 60, 1380, 1000, 'add'], [1500, 60, 940, 470, 'sum'], [1500, 590, 940, 470, 'help'],
+  [60, 1120, 476, 506, 'tab:sum'], [536, 1120, 476, 506, 'tab:ana'], [1012, 1120, 476, 506, 'tab:bud'], [1488, 1120, 476, 506, 'tab:list'], [1964, 1120, 476, 506, 'tab:set']];
 
 // The app links carry a 45-day token, so each user's menu is rebuilt every 20 days, whenever they next talk to the bot.
 async function ensureMenu(env, origin, u) {

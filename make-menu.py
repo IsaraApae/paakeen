@@ -1,9 +1,13 @@
-"""Draw the LINE chat menu (public/menu.jpg) in the web app's style. macOS only (renders with qlmanage + sips).
+"""Draw the LINE chat menu (public/menu.jpg) in the web app's style.
 
 Run: python3 make-menu.py
+It writes menu-source.svg on any system, and on macOS also renders public/menu.jpg from it (with qlmanage and sips).
+Elsewhere, render the SVG's middle 2500x1686 to a JPEG under 1 MB some other way, such as a headless browser with the
+Noto Sans Thai font loaded (the loopless Thai font closest to the iPhone's Sukhumvit Set).
 The tile boxes below must match MENU_TILES in src/index.js; bump MENU_VERSION there after changing the image.
 """
 import os
+import platform
 import subprocess
 import tempfile
 
@@ -19,23 +23,27 @@ ICON = {
     "chat": "M4 5h16v11H10l-6 4z",
     "plus": "M12 5v14M5 12h14",
 }
-# key, box (x, y, w, h), icon, label, subtitle, icon tint (the app's soft category colours)
+# Laid out like the app: the big red + to record an entry, and along the bottom the app's own menu bar, a white capsule
+# with its five tabs, their line icons and names. The two chat actions sit beside the +.
+BAR = (60, 1120, 2380, 506)
+TAB_W = BAR[2] // 5
+TABS = [("sum", "home", "สรุป"), ("ana", "bars", "วิเคราะห์"), ("bud", "pie", "หมวดหมู่"), ("list", "list", "รายการ"), ("set", "gear", "ตั้งค่า")]
+# key, box (x, y, w, h), icon, label, subtitle
 TILES = [
-    ("add", (60, 60, 1380, 1000), "plus", "จดรายการ", "พิมพ์ ส่งสลิป หรือส่งเสียงในแชตก็ได้", None),
-    ("sum", (1500, 60, 440, 470), "home", "สรุป", None, "#E58C84"),
-    ("ana", (2000, 60, 440, 470), "bars", "วิเคราะห์", None, "#86B2DE"),
-    ("bud", (1500, 590, 440, 470), "pie", "หมวดหมู่", None, "#E8AC72"),
-    ("list", (2000, 590, 440, 470), "list", "รายการ", None, "#9F9DDA"),
-    ("chat", (60, 1120, 1380, 506), "chat", "สรุปในแชต", "ยอดรอบนี้ ตอบกลับทันที", "#93C79C"),
-    ("set", (1500, 1120, 440, 506), "gear", "ตั้งค่า", None, "#A9A9B0"),
-    ("help", (2000, 1120, 440, 506), "help", "วิธีใช้", None, "#C3A0D8"),
-]
-FONT = "font-family=\"'Sukhumvit Set', Thonburi, -apple-system, sans-serif\""
+    ("add", (60, 60, 1380, 1000), "plus", "จดรายการ", "พิมพ์ ส่งสลิป หรือส่งเสียงในแชตก็ได้"),
+    ("chat", (1500, 60, 940, 470), "chat", "สรุปในแชต", "ยอดรอบนี้ ตอบกลับทันที"),
+    ("help", (1500, 590, 940, 470), "help", "วิธีใช้", "พิมพ์อะไรได้บ้าง"),
+] + [(key, (BAR[0] + i * TAB_W, BAR[1], TAB_W, BAR[3]), ic, label, None) for i, (key, ic, label) in enumerate(TABS)]
+FONT = "font-family=\"'Sukhumvit Set', 'Noto Sans Thai', Thonburi, -apple-system, sans-serif\""
 
 
-def icon(name, cx, cy, size, colour, width=2):
+def icon(name, cx, cy, size, colour, width=1.8):  # 1.8: the app's own stroke for these icons
     return (f'<g transform="translate({cx - size / 2} {cy - size / 2}) scale({size / 24})" fill="none" stroke="{colour}" '
             f'stroke-width="{width}" stroke-linecap="round" stroke-linejoin="round"><path d="{ICON[name]}"/></g>')
+
+
+def card(x, y, w, h, r):
+    return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="#FFFFFF" filter="url(#lift)"/>'
 
 
 def svg():
@@ -44,38 +52,39 @@ def svg():
   <linearGradient id="btn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF6961"/><stop offset="1" stop-color="#C24A44"/></linearGradient>
   <filter id="lift" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="20" stdDeviation="28" flood-color="#000" flood-opacity=".08"/><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity=".04"/></filter>
 </defs>""", f'<rect width="{W}" height="{W}" fill="#F5F5F7"/>', f'<g transform="translate(0 {(W - H) // 2})">']
-    for key, (x, y, w, h), ic, label, sub, tint in TILES:
-        r = 120 if w > 500 else 100
-        out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="#FFFFFF" filter="url(#lift)"/>')
-        if key == "add":
+    out.append(card(*BAR, BAR[3] // 2))  # the tabs share one capsule, as in the app
+    for key, (x, y, w, h), ic, label, sub in TILES:
+        if key == "add":  # the app's + button: the red gradient with its soft red ring
+            out.append(card(x, y, w, h, 120))
             cx, cy = x + 270, y + 280
             out.append(f'<circle cx="{cx}" cy="{cy}" r="192" fill="#FF6961" fill-opacity=".15"/>')
             out.append(f'<circle cx="{cx}" cy="{cy}" r="160" fill="url(#btn)"/>')
             out.append(icon(ic, cx, cy, 180, "#FFFFFF", 2.4))
             out.append(f'<text x="{x + 110}" y="{y + 700}" {FONT} font-weight="bold" font-size="200" fill="{LABEL}">{label}</text>')
             out.append(f'<text x="{x + 114}" y="{y + 865}" {FONT} font-size="84" fill="{LABEL2}">{sub}</text>')
-        elif key == "chat":
-            cx, cy = x + 240, y + h / 2
-            out.append(f'<rect x="{cx - 130}" y="{cy - 130}" width="260" height="260" rx="84" fill="{tint}" fill-opacity=".22"/>')
-            out.append(icon(ic, cx, cy, 140, LABEL))
-            out.append(f'<text x="{x + 440}" y="{y + h / 2 - 5}" {FONT} font-weight="bold" font-size="136" fill="{LABEL}">{label}</text>')
-            out.append(f'<text x="{x + 442}" y="{y + h / 2 + 115}" {FONT} font-size="82" fill="{LABEL2}">{sub}</text>')
-        else:
-            cx, cy = x + w / 2, y + h * .4
-            out.append(f'<rect x="{cx - 105}" y="{cy - 105}" width="210" height="210" rx="68" fill="{tint}" fill-opacity=".22"/>')
-            out.append(icon(ic, cx, cy, 120, LABEL))
-            out.append(f'<text x="{cx}" y="{y + h - 85}" text-anchor="middle" {FONT} font-weight="bold" font-size="{90 if len(label) < 8 else 82}" fill="{LABEL}">{label}</text>')
+        elif sub:  # สรุปในแชต and วิธีใช้: icon, name, and a grey line
+            out.append(card(x, y, w, h, 120))
+            out.append(icon(ic, x + 150, y + 140, 120, LABEL))
+            out.append(f'<text x="{x + 90}" y="{y + 310}" {FONT} font-weight="bold" font-size="116" fill="{LABEL}">{label}</text>')
+            out.append(f'<text x="{x + 92}" y="{y + 418}" {FONT} font-size="70" fill="{LABEL2}">{sub}</text>')
+        else:  # a tab of the bar: the icon over its name, as in the app's menu bar
+            cx = x + w / 2
+            out.append(icon(ic, cx, y + 200, 150, LABEL))
+            out.append(f'<text x="{cx}" y="{y + 395}" text-anchor="middle" {FONT} font-weight="600" font-size="86" fill="{LABEL}">{label}</text>')
     out += ["</g>", "</svg>"]
     return "\n".join(out)
 
 
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, "menu-source.svg"), "w", encoding="utf-8") as f:
-        f.write(svg())
-    with tempfile.TemporaryDirectory() as tmp:
-        subprocess.run(["qlmanage", "-t", "-s", str(W), "-o", tmp, os.path.join(here, "menu-source.svg")], check=True, capture_output=True)
-        png = os.path.join(tmp, "menu-source.svg.png")
-        subprocess.run(["sips", "-c", str(H), str(W), png, "--out", png], check=True, capture_output=True)
-        subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "90", png, "--out", os.path.join(here, "public", "menu.jpg")], check=True, capture_output=True)
-    print("tiles for MENU_TILES:", [list(box) for _, box, *_ in TILES])
+    with open(os.path.join(here, "menu-source.svg"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(svg() + "\n")
+    if platform.system() == "Darwin":
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["qlmanage", "-t", "-s", str(W), "-o", tmp, os.path.join(here, "menu-source.svg")], check=True, capture_output=True)
+            png = os.path.join(tmp, "menu-source.svg.png")
+            subprocess.run(["sips", "-c", str(H), str(W), png, "--out", png], check=True, capture_output=True)
+            subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "90", png, "--out", os.path.join(here, "public", "menu.jpg")], check=True, capture_output=True)
+    else:
+        print(f"wrote menu-source.svg; render its middle {W}x{H} to public/menu.jpg (see the note at the top)")
+    print("tiles for MENU_TILES:", [[*box, key] for key, box, *_ in TILES])
