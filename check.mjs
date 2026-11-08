@@ -4,9 +4,10 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {Script} from 'node:vm';
 
-for (const file of ['src/index.js', 'public/report.js', 'test.mjs', 'seed.mjs', 'check.mjs']) execFileSync(process.execPath, ['--check', file], {stdio: 'inherit'});
+const files = ['src/index.js', 'public/report.js', 'public/categories.js', 'test.mjs', 'seed.mjs', 'check.mjs'];
+for (const file of files) execFileSync(process.execPath, ['--check', file], {stdio: 'inherit'});
 let n = 0;
 for (const [, attrs, code] of readFileSync('public/index.html', 'utf8').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
   if (!/\bsrc=/.test(attrs)) new Script(code, {filename: `public/index.html, inline script ${++n}`});  // throws on a syntax error
 }
-console.log(`syntax ok: 5 files and ${n} inline scripts`);
+console.log(`syntax ok: ${files.length} files and ${n} inline scripts`);

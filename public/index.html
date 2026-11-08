@@ -32,6 +32,7 @@ try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t
 let early = token && fetch('/api/state', {headers: {Authorization: 'Bearer ' + token}});
 early && early.catch(() => {});  // no connection: api() reports it when load() asks for this answer
 </script>
+<link rel="preload" href="/categories.js" as="script">
 <link rel="preload" href="/report.js" as="script">  <!-- its tag is at the end of this long page, found only once nearly all of it is in -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>  <!-- crossorigin: the scripts below load in that mode, for their integrity check -->
 <!-- async: the page and data load alongside it. integrity: the browser refuses the file if the CDN ever serves anything else
@@ -331,6 +332,7 @@ dialog .group { background: var(--surface); }
 <dialog id="dlg"></dialog>
 <dialog id="pick"></dialog>
 <div id="toast" role="status"></div>
+<script src="/categories.js"></script>
 <script src="/report.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -362,9 +364,8 @@ const topTint = () => {
 try { applyTheme(localStorage.getItem('theme')); } catch {}
 const ui = {repOff: 0, sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
             f: {mode: 'month', off: 0, from: '', to: '', kind: 'all', cat: null}};
-// expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
-const PAL = ['#E58C84', '#E8AC72', '#DDC46A', '#7FC4BD', '#86B2DE', '#9F9DDA', '#C3A0D8', '#E39AB4', '#BBA38C', '#92C1D1', '#A9A9B0'];
-const INCOME_COLOUR = '#35805A';  // income categories use the same green as รายรับ in สรุป
+// the category colours and the built-in categories' emoji: public/categories.js, shared with the worker's LINE cards
+const {PAL, INCOME_COLOUR, CAT_EMOJI} = CATEGORY_LOOK;
 const INCOME_PAL = [INCOME_COLOUR, '#2B6B4A', '#4E9F6E', '#6DBB8A', '#93CFA6', '#3F8F7A', '#5AAE9C', '#7FB069', '#A3C977', '#4C8C4A', '#B7DDB0'];  // greens only
 const FULL = {day: 'numeric', month: 'short', year: 'numeric'}, MONTH = {month: 'long', year: 'numeric'};
 const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
@@ -423,8 +424,6 @@ const money = n => (n < 0 ? '-' : '') + S.settings.currency + Math.abs(n).toLoca
 const signed = (n, kind) => (kind === 'expense' ? '-' : '+') + money(n);
 const cat = id => S.categories.find(c => c.id === id);
 const catName = e => cat(e.category_id)?.name ?? L('ไม่มีหมวด', 'Uncategorised');
-// the built-in categories' emoji; shown by each device's own emoji font (Apple's on an iPhone or Mac). A category's own choice wins
-const CAT_EMOJI = {'อาหาร': '🍜', 'เครื่องดื่ม': '🧋', 'ขนมหวาน': '🍰', 'บันเทิง': '🎬', 'ชอปปิ้ง': '🛍️', 'เดินทาง': '🚗', 'ค่าน้ำค่าไฟ': '💡', 'เรียน': '📚', 'ของขวัญ': '🎁', 'อื่นๆ': '📦', 'เงินเดือน': '💰'};
 const catEmoji = id => { const c = cat(id); return c ? c.emoji || CAT_EMOJI[c.name] || '' : ''; };
 const dot = (colour, emoji) => `<i class="dot" style="--c:${colour}">${esc(emoji)}</i>`;
 const catDot = id => dot(catColor(id), catEmoji(id));

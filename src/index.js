@@ -2,6 +2,7 @@
 // The web app itself is public/index.html, served as a static asset.
 // Check: node test.mjs
 import '../public/report.js';  // defines globalThis.monthReport, shared with the web app
+import '../public/categories.js';  // defines globalThis.CATEGORY_LOOK, shared with the web app
 
 const RED = '#C24A44', GREEN = '#35805A', GREY = '#6E6E73';
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -355,11 +356,8 @@ const bubble = (title, sub, body, actions, char) => ({
 });
 const flex = (alt, bubbles) => ({type: 'flex', altText: alt.slice(0, 400), contents: bubbles.length === 1 ? bubbles[0] : {type: 'carousel', contents: bubbles.slice(0, 12)}});
 
-// same as public/index.html: expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
-const PAL = ['#E58C84', '#E8AC72', '#DDC46A', '#7FC4BD', '#86B2DE', '#9F9DDA', '#C3A0D8', '#E39AB4', '#BBA38C', '#92C1D1', '#A9A9B0'];
-const INCOME_COLOUR = '#35805A';  // income categories use the same green as รายรับ in สรุป
-// same as public/index.html: the built-in categories' emoji; a category's own choice wins
-const CAT_EMOJI = {'อาหาร': '🍜', 'เครื่องดื่ม': '🧋', 'ขนมหวาน': '🍰', 'บันเทิง': '🎬', 'ชอปปิ้ง': '🛍️', 'เดินทาง': '🚗', 'ค่าน้ำค่าไฟ': '💡', 'เรียน': '📚', 'ของขวัญ': '🎁', 'อื่นๆ': '📦', 'เงินเดือน': '💰'};
+// the category colours and the built-in categories' emoji, from public/categories.js like the web app
+const {PAL, INCOME_COLOUR, CAT_EMOJI} = globalThis.CATEGORY_LOOK;
 const catEmoji = (name, own) => own || CAT_EMOJI[name] || '';
 // a category's badge, as in the web app: a tinted rounded square with its emoji, or its colour when it has none
 const badge = (colour, emoji, size) => ({type: 'box', layout: 'vertical', flex: 0, width: size, height: size, cornerRadius: '10px', backgroundColor: colour + '33', justifyContent: 'center', alignItems: 'center',
