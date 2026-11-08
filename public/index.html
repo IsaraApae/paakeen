@@ -760,6 +760,7 @@ const retry = () => { $('#main').innerHTML = `<p class="empty">กำลัง�
 document.getElementById('chartjs').addEventListener('load', () => S && render());  // charts appear once the library is in
 function render() {
   applyTheme(S.settings.theme);
+  document.documentElement.lang = S.settings.lang === 'en' ? 'en' : 'th';  // so screen readers pick the right voice
   charts.forEach(c => c.destroy()); charts = []; after = [];
   // no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
   if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
