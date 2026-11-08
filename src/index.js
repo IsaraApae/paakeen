@@ -75,9 +75,16 @@ const init = env => ready ??= env.DB.prepare('SELECT 1 FROM recurring INDEXED BY
 const q = (env, sql, ...args) => env.DB.prepare(sql).bind(...args);
 const all = async (env, sql, ...args) => (await q(env, sql, ...args).all()).results;
 const settings = u => ({...DEFAULT_SETTINGS, ...JSON.parse(u.settings)});
+// Only the keys being changed are written, inside the database: rewriting the whole object from a copy read earlier
+// let two requests at once (a reply's steps and the chat-menu refresh, or two settings saved in the app) undo each other.
+const writeSettings = (env, uid, patch) => {
+  const keys = Object.keys(patch);  // keys come from this file or the SETTINGS whitelist, never from a request
+  return keys.length ? q(env, `UPDATE users SET settings = json_set(settings${', ?, json(?)'.repeat(keys.length)}) WHERE id = ?`,
+    ...keys.flatMap(k => ['$.' + k, JSON.stringify(patch[k])]), uid).run() : null;
+};
 async function saveSettings(env, u, patch) {
   u.settings = JSON.stringify({...JSON.parse(u.settings), ...patch});
-  await q(env, 'UPDATE users SET settings = ? WHERE id = ?', u.settings, u.id).run();
+  await writeSettings(env, u.id, patch);
 }
 
 async function getUser(env, uid, create) {
@@ -724,7 +731,7 @@ async function remind(env) {
       if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
     }
     if (!s.remind || now.slice(11) < s.remind || s.last_remind === today) continue;
-    await q(env, 'UPDATE users SET settings = ? WHERE id = ?', JSON.stringify({...JSON.parse(u.settings), last_remind: today}), u.id).run();
+    await writeSettings(env, u.id, {last_remind: today});
     if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
     }
@@ -784,7 +791,7 @@ async function api(env, u, method, path, body, state) {
     return {user: {name: u.name, picture: u.picture}, settings: settings(u), categories, channels, recurring, entries};
   }
   if (method === 'PUT' && path.join('/') === 'settings') {
-    await q(env, 'UPDATE users SET settings = ? WHERE id = ?', JSON.stringify({...JSON.parse(u.settings), ...validated(SETTINGS, body)}), uid).run();
+    await writeSettings(env, uid, validated(SETTINGS, body));
     return {};
   }
   const [table, id, ...extra] = path;

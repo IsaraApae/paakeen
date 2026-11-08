@@ -163,6 +163,10 @@ try {
   state = await api(t1, 'GET', 'state');
   assert.equal(state.settings.cycle_day, 25);
   assert.equal('hacked' in state.settings, false);
+  // two settings saved at the same moment both stay (each request writes only its own keys)
+  await Promise.all([api(t1, 'PUT', 'settings', {theme: 'dark'}), api(t1, 'PUT', 'settings', {currency: '$'}), api(t1, 'PUT', 'settings', {lang: 'en'})]);
+  assert.deepEqual((({theme, currency, lang}) => ({theme, currency, lang}))((await api(t1, 'GET', 'state')).settings), {theme: 'dark', currency: '$', lang: 'en'});
+  await api(t1, 'PUT', 'settings', {theme: 'auto', currency: '฿', lang: 'th'});
 
   // recurring: catches up once, never twice, even with simultaneous requests
   const start = new Date(Date.now() - 2 * 864e5 + 7 * 36e5).toISOString().slice(0, 10);  // two days ago, Bangkok time
