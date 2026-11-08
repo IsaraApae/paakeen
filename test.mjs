@@ -1,12 +1,18 @@
 // End-to-end check: runs the worker locally against a mock LINE + Gemini.
-//   node test.mjs
+//   npm install, then npm test (or node test.mjs)
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn, spawnSync} from 'node:child_process';
 import {createHmac} from 'node:crypto';
 import {mkdtempSync} from 'node:fs';
 import {createServer} from 'node:http';
+import {createRequire} from 'node:module';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+
+// the project's own wrangler, started with node itself: spawning npx needs a shell on Windows
+let wrangler;
+try { wrangler = createRequire(import.meta.url).resolve('wrangler/package.json').replace(/package\.json$/, 'bin/wrangler.js'); }
+catch { throw new Error('wrangler is not installed: run npm install first'); }
 
 const MOCK = 8798, PORT = 8799, base = `http://127.0.0.1:${PORT}`, mockUrl = `http://127.0.0.1:${MOCK}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -39,7 +45,7 @@ const mock = createServer(async (req, res) => {
 }).listen(MOCK);
 
 const vars = {LINE_CHANNEL_SECRET: 'dev', LINE_CHANNEL_ACCESS_TOKEN: 'dev', GEMINI_API_KEY: 'dev', LINE_API: mockUrl, LINE_DATA_API: mockUrl, GEMINI_API: mockUrl, GEMINI_MODEL: 'busy-model,slow-model,ok-model', GEMINI_FAST_MODEL: 'fast-model'};
-const dev = spawn('npx', ['wrangler', 'dev', '--port', String(PORT), '--test-scheduled', '--persist-to', mkdtempSync(join(tmpdir(), 'paakeen-')),
+const dev = spawn(process.execPath, [wrangler, 'dev', '--port', String(PORT), '--test-scheduled', '--persist-to', mkdtempSync(join(tmpdir(), 'paakeen-')),
   ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`])], {stdio: process.env.DEBUG ? 'inherit' : 'ignore'});
 
 async function hook(ev, uid = 'u1', secret = 'dev') {
@@ -259,6 +265,8 @@ try {
 
   console.log('ok');
 } finally {
-  dev.kill();
+  // Windows doesn't pass the stop on to wrangler's own children (the runtime), which would keep the port
+  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(dev.pid), '/T', '/F']);
+  else dev.kill();
   mock.close();
 }

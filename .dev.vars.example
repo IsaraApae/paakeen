@@ -1,0 +1,16 @@
+# Local secrets for `npm run dev` (wrangler dev). Copy this file to .dev.vars, which git ignores.
+# In production, set each one once with `npx wrangler secret put <NAME>` instead.
+# The `dev` values are enough to open the web app locally: seed.mjs signs its link with LINE_CHANNEL_SECRET=dev.
+
+# LINE Developers console > your Messaging API channel > Basic settings > Channel secret
+LINE_CHANNEL_SECRET=dev
+# Messaging API tab > Channel access token (long-lived)
+LINE_CHANNEL_ACCESS_TOKEN=dev
+# https://aistudio.google.com/apikey
+GEMINI_API_KEY=dev
+
+# Optional, for working offline: send LINE and Gemini calls to a local mock instead of the real APIs
+# (test.mjs starts its own mock on :8798). With these unset, the real APIs are called.
+# LINE_API=http://127.0.0.1:8798
+# LINE_DATA_API=http://127.0.0.1:8798
+# GEMINI_API=http://127.0.0.1:8798
