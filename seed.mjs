@@ -4,10 +4,15 @@ import {createHmac} from 'node:crypto';
 const base = 'http://localhost:8787', uid = 'Udev';
 const body = JSON.stringify({events: [{type: 'follow', replyToken: 'r', source: {type: 'user', userId: uid}}]});
 await fetch(base + '/webhook', {method: 'POST', body, headers: {'X-Line-Signature': createHmac('sha256', 'dev').update(body).digest('base64')}});
-await new Promise(r => setTimeout(r, 1500));
 const p = `${uid}.${Math.floor(Date.now() / 1000) + 30 * 86400}`, token = p + '.' + createHmac('sha256', 'app-tokendev').update(p).digest('hex');
 const api = (method, path, b) => fetch(`${base}/api/${path}`, {method, headers: {Authorization: 'Bearer ' + token}, body: b && JSON.stringify(b)}).then(r => r.json());
-const s = await api('GET', 'state');
+// the webhook answers straight away and adds the user after; a fresh local database takes a few seconds the first time
+let s;
+for (let i = 0; !s?.categories?.length; i++) {
+  if (i === 60) throw new Error('the test user was never added: is `wrangler dev` running on :8787 with LINE_CHANNEL_SECRET=dev?');
+  await new Promise(r => setTimeout(r, 500));
+  s = await api('GET', 'state').catch(() => null);  // 401 until the user exists
+}
 const cat = n => s.categories.find(c => c.name === n)?.id, ch = n => s.channels.find(c => c.name === n)?.id;
 let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const items = [['อาหาร', ['ข้าวมันไก่', 'ก๋วยเตี๋ยว', 'Yoshinoya', 'ส้มตำ', 'ข้าวกะเพรา'], 50, 180, 9], ['เครื่องดื่ม', ['กาแฟ', 'HEYTEA', 'ชาไข่มุก'], 45, 140, 6],

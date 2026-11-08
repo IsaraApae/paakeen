@@ -1,0 +1,24 @@
+{
+  "name": "paakeen",
+  "private": true,
+  "description": "ป้าคีน: a LINE chatbot that records income and expenses, with a web app for summaries and charts (Cloudflare Workers + D1 + Gemini)",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node check.mjs && wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "test": "node test.mjs",
+    "seed": "node seed.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "workerd": true
+  }
+}

@@ -1,3 +1,11 @@
+# Every page and file: browsers take each file as the type it is sent as, send no address on to other sites, and show
+# the app only as its own page, never inside another site's frame (a framed page could be tricked into a tap on ลบ)
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+
 # The pictures' addresses carry ?v=CHAR_VERSION, so they can be kept for good
 /chars/*
   Cache-Control: public, max-age=31536000, immutable

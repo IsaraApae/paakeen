@@ -1,0 +1,12 @@
+# Monthly pull requests for wrangler (npm) and the CI's actions. Chart.js and SheetJS load from cdnjs in
+# public/index.html, which Dependabot can't see: update those by hand, with the new file's integrity hash.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

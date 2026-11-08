@@ -6,6 +6,18 @@
 <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">  <!-- --top-solid; a script adds a third tag only for a picked theme opposite the phone's -->
 <meta name="theme-color" content="#0F0F11" media="(prefers-color-scheme: dark)">
 <title>ป้าคีน</title>
+<meta name="description" content="ป้าคีนช่วยจดรายรับรายจ่ายจากแชต LINE: พิมพ์ ส่งสลิป เสียง หรือ PDF แล้วดูสรุป กราฟ และรายงานประจำเดือนได้ที่นี่">
+<!-- the preview LINE and other apps show for a shared link; the image needs a full address, so change it with APP_ORIGIN when running your own -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ป้าคีน">
+<meta property="og:title" content="ป้าคีน · จดรายรับรายจ่ายใน LINE">
+<meta property="og:description" content="พิมพ์ ส่งสลิป เสียง หรือ PDF ให้ป้าคีนจด แล้วดูสรุป กราฟ และรายงานประจำเดือนได้ในแอป">
+<meta property="og:image" content="https://paakeen.p-isarabhakdi.workers.dev/icon-512.png?v=2">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="ไอคอนป้าคีน: กล่องข้อความสีแดงกับเครื่องหมาย ฿">
+<meta property="og:locale" content="th_TH">
+<meta name="twitter:card" content="summary">
 <link rel="icon" href="/favicon.ico?v=2" sizes="any">  <!-- ?v= makes browsers drop an icon (or "no icon") they cached; bump it when the icon changes -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png?v=2">
@@ -18,10 +30,15 @@ const hash = new URLSearchParams(location.hash.slice(1));
 let token = hash.get('t');
 try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t'); } catch {}
 let early = token && fetch('/api/state', {headers: {Authorization: 'Bearer ' + token}});
+early && early.catch(() => {});  // no connection: api() reports it when load() asks for this answer
 </script>
+<link rel="preload" href="/categories.js" as="script">
 <link rel="preload" href="/report.js" as="script">  <!-- its tag is at the end of this long page, found only once nearly all of it is in -->
-<link rel="preconnect" href="https://cdnjs.cloudflare.com">
-<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>  <!-- async: the page and data load alongside it -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>  <!-- crossorigin: the scripts below load in that mode, for their integrity check -->
+<!-- async: the page and data load alongside it. integrity: the browser refuses the file if the CDN ever serves anything else
+     (the page holds the login link and every entry); take a new version's hash from cdnjs.com along with its address -->
+<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js"
+  integrity="sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==" crossorigin="anonymous"></script>
 <style>
 /* Solid white cards with soft shadows on a plain background; the red gradient is kept for the + button */
 :root {
@@ -208,6 +225,7 @@ nav { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, 1fr
 .selecting .dock { display: none; }
 nav button { padding: 6px 0 5px; border-radius: 999px; color: var(--label); font-size: 11px; font-weight: 500; display: grid; justify-items: center; gap: 1px; transition: background .25s; }
 nav button.on { color: var(--red); font-weight: 600; }
+@media (max-width: 359px) { nav button { font-size: 10px; } }  /* 320px phones: วิเคราะห์ and หมวดหมู่ ran into each other at 11px */
 nav svg { width: 24px; height: 24px; stroke-width: 1.8; }
 
 /* dialogs: a glass sheet for entries, a compact glass alert for one value or a confirmation */
@@ -315,6 +333,7 @@ dialog .group { background: var(--surface); }
 <dialog id="dlg"></dialog>
 <dialog id="pick"></dialog>
 <div id="toast" role="status"></div>
+<script src="/categories.js"></script>
 <script src="/report.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -322,7 +341,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '
 if (location.hash) history.replaceState(null, '', location.pathname + location.search);  // keep the token out of the address bar and history
 onhashchange = () => location.reload();  // a fresh link tapped while the app is already open
 
-let S, tab = 'sum', charts = [], after = [];
+let S, tab = 'sum', charts = [], after = [], waiting = [];  // waiting: charts the last render drew before Chart.js arrived
 addEventListener('keydown', e => e.key === 'Tab' && document.documentElement.classList.add('kbd'));
 const applyTheme = t => { const r = document.documentElement; t === 'light' || t === 'dark' ? r.dataset.theme = t : r.removeAttribute('data-theme'); try { localStorage.setItem('theme', t); } catch {} topTint(); };
 // LINE and Safari colour the strips behind the clock and the bottom bar from the page, but only look again when a
@@ -346,9 +365,8 @@ const topTint = () => {
 try { applyTheme(localStorage.getItem('theme')); } catch {}
 const ui = {repOff: 0, sumOff: 0, sumOpen: false, mode: 'month', month: '', pie: '', dayKind: 'expense', kind: 'expense', sort: false, sel: null,
             f: {mode: 'month', off: 0, from: '', to: '', kind: 'all', cat: null}};
-// expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
-const PAL = ['#E58C84', '#E8AC72', '#DDC46A', '#7FC4BD', '#86B2DE', '#9F9DDA', '#C3A0D8', '#E39AB4', '#BBA38C', '#92C1D1', '#A9A9B0'];
-const INCOME_COLOUR = '#35805A';  // income categories use the same green as รายรับ in สรุป
+// the category colours and the built-in categories' emoji: public/categories.js, shared with the worker's LINE cards
+const {PAL, INCOME_COLOUR, CAT_EMOJI} = CATEGORY_LOOK;
 const INCOME_PAL = [INCOME_COLOUR, '#2B6B4A', '#4E9F6E', '#6DBB8A', '#93CFA6', '#3F8F7A', '#5AAE9C', '#7FB069', '#A3C977', '#4C8C4A', '#B7DDB0'];  // greens only
 const FULL = {day: 'numeric', month: 'short', year: 'numeric'}, MONTH = {month: 'long', year: 'numeric'};
 const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
@@ -407,8 +425,6 @@ const money = n => (n < 0 ? '-' : '') + S.settings.currency + Math.abs(n).toLoca
 const signed = (n, kind) => (kind === 'expense' ? '-' : '+') + money(n);
 const cat = id => S.categories.find(c => c.id === id);
 const catName = e => cat(e.category_id)?.name ?? L('ไม่มีหมวด', 'Uncategorised');
-// the built-in categories' emoji; shown by each device's own emoji font (Apple's on an iPhone or Mac). A category's own choice wins
-const CAT_EMOJI = {'อาหาร': '🍜', 'เครื่องดื่ม': '🧋', 'ขนมหวาน': '🍰', 'บันเทิง': '🎬', 'ชอปปิ้ง': '🛍️', 'เดินทาง': '🚗', 'ค่าน้ำค่าไฟ': '💡', 'เรียน': '📚', 'ของขวัญ': '🎁', 'อื่นๆ': '📦', 'เงินเดือน': '💰'};
 const catEmoji = id => { const c = cat(id); return c ? c.emoji || CAT_EMOJI[c.name] || '' : ''; };
 const dot = (colour, emoji) => `<i class="dot" style="--c:${colour}">${esc(emoji)}</i>`;
 const catDot = id => dot(catColor(id), catEmoji(id));
@@ -482,7 +498,7 @@ function translate(root) {
   for (let n; (n = w.nextNode());) { const k = n.nodeValue.trim(); if (EN[k]) n.nodeValue = n.nodeValue.replace(k, EN[k]); }
 }
 function chart(id, type, labels, datasets, options = {}, plugins = []) {
-  if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options, plugins})));
+  (window.Chart ? after : waiting).push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options, plugins})));
   return `<canvas id="${id}" style="aspect-ratio:${options.aspectRatio || (type === 'doughnut' ? 1 : 2)}"></canvas>`;  // Chart.js's default shapes
 }
 // Chart.js's own slice spacing leaves uneven gaps (small slices nearly touch, the one at the top looks wider), so the
@@ -716,31 +732,46 @@ const entryBody = r => ({amount: +r.amount, note: r.note, kind: r.kind, category
 
 // ---------- data + navigation ----------
 async function api(method, path, body) {
-  const req = early && path === 'state' ? early : fetch('/api/' + path, {method, headers: {Authorization: 'Bearer ' + token}, body: body && JSON.stringify(body)});
+  // with no link there is nothing to ask the server: it can only answer 401
+  const req = !token ? null : early && path === 'state' ? early : fetch('/api/' + path, {method, headers: {Authorization: 'Bearer ' + token}, body: body && JSON.stringify(body)});
   early = null;  // the request from <head> answers the first load() only
-  const r = await req;
-  if (r.status === 401) {
+  const r = req && await req.catch(() => null);  // null: no connection
+  if (!token || r?.status === 401) {
     try { localStorage.removeItem(CACHE); } catch {}
     $('#main').innerHTML = '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>';
     throw new Error('auth');
   }
-  if (!r.ok) { toast(L('บันทึกไม่สำเร็จ ลองอีกครั้ง', 'Could not save. Try again.')); throw new Error(r.status); }
+  if (!r?.ok) {
+    // nothing on screen yet (and the language not known): say so in both, with a way to try again
+    if (!S) $('#main').innerHTML = '<p class="empty">โหลดข้อมูลไม่สำเร็จ ลองใหม่อีกครั้งนะจ๊ะ<br><br>Could not load your data. Please try again.<br><br><button class="pill" onclick="retry()">ลองอีกครั้ง · Try again</button></p>';
+    else toast(method === 'GET' ? L('โหลดข้อมูลไม่สำเร็จ ลองอีกครั้ง', 'Could not load. Try again.') : L('บันทึกไม่สำเร็จ ลองอีกครั้ง', 'Could not save. Try again.'));
+    throw new Error(r ? r.status : 'offline');
+  }
   return r.json();
 }
 // The last data seen is kept on the phone (per user, so a shared phone never shows someone else's), so the app
 // opens straight away with it while fresh data loads; a few seconds old at most, then replaced
 const CACHE = 'state:' + (token || '').split('.')[0];
-async function load() {
-  S = await api('GET', 'state');
-  render();
+// Resolves to whether fresh data arrived; when it didn't, api() has already said why on screen.
+// first: the opening load, which start() draws once it has set the opening tab, so the page is drawn once, not twice
+async function load(first) {
+  try { S = await api('GET', 'state'); } catch { return false; }
+  if (!first) render();
   try { localStorage.setItem(CACHE, JSON.stringify(S)); } catch {}  // full or blocked storage: just no head start next time
+  return true;
 }
-document.getElementById('chartjs').addEventListener('load', () => S && render());  // charts appear once the library is in
+const retry = () => { $('#main').innerHTML = `<p class="empty">กำลังโหลด…</p>`; load(true).then(ok => ok && start()); };
+// charts take their colours and font from the page's CSS.
+// no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
+const chartDefaults = () => { Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}); Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; };
+// once the library is in, the charts the page is waiting for are drawn on the canvases already there (sized for them),
+// instead of drawing the whole page again
+document.getElementById('chartjs').addEventListener('load', () => { if (!waiting.length) return; chartDefaults(); waiting.forEach(f => f()); waiting = []; });
 function render() {
   applyTheme(S.settings.theme);
-  charts.forEach(c => c.destroy()); charts = []; after = [];
-  // no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
-  if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  document.documentElement.lang = S.settings.lang === 'en' ? 'en' : 'th';  // so screen readers pick the right voice
+  charts.forEach(c => c.destroy()); charts = []; after = []; waiting = [];
+  if (window.Chart) chartDefaults();
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'report' ? 'sum' : tab)));
   document.body.classList.toggle('selecting', !!ui.sel);
   const chips = $('.chips'), was = chips && [chips.dataset.k, chips.scrollLeft];
@@ -876,7 +907,8 @@ async function exportCsv() {
   } else {
     // the spreadsheet library is only loaded when someone asks for Excel; cells stay plain text or numbers, never formulas
     if (!window.XLSX) await new Promise((ok, fail) => document.head.append(Object.assign(document.createElement('script'),
-      {src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.mini.min.js', onload: ok, onerror: () => fail(toast(L('โหลดตัวสร้างไฟล์ Excel ไม่ได้ ลองใหม่หรือเลือก CSV', 'Could not load the Excel maker. Try again or pick CSV.')))})));
+      {src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.mini.min.js', crossOrigin: 'anonymous',
+        integrity: 'sha512-NDQhXrK2pOCL18FV5/Nc+ya9Vz+7o8dJV1IGRwuuYuRMFhAR0allmjWdZCSHFLDYgMvXKyN2jXlSy2JJEmq+ZA==', onload: ok, onerror: () => fail(toast(L('โหลดตัวสร้างไฟล์ Excel ไม่ได้ ลองใหม่หรือเลือก CSV', 'Could not load the Excel maker. Try again or pick CSV.')))})));
     const book = XLSX.utils.book_new(), sheet = XLSX.utils.aoa_to_sheet(rows);
     sheet['!cols'] = cols.map(c => ({wch: c[0] === 'note' ? 28 : 14}));
     XLSX.utils.book_append_sheet(book, sheet, 'ป้าคีน');
@@ -1073,20 +1105,21 @@ const VIEWS = {
 const start = () => {
   ui.month = today().slice(0, 7);
   Object.assign(ui.f, cycle(0));
-  render();
   let back = null; try { back = sessionStorage.getItem('tab'); sessionStorage.removeItem('tab'); } catch {}
   const rep = hash.get('rep');  // the report card's link names its period
   if (rep) { const from = cycle(0).from; ui.repOff = Math.min(0, (rep.slice(0, 4) - from.slice(0, 4)) * 12 + (rep.slice(5, 7) - from.slice(5, 7))); }
+  // the page is drawn once, straight on the opening tab
   if (hash.get('tab') === 'report' && !rep) openReport();
   else if (hash.get('tab') in VIEWS) go(hash.get('tab'));  // the chat menu's tiles
   else if (back in VIEWS) go(back);  // after a reload from ตั้งค่า
+  else render();
   if (hash.get('add')) editEntry();
   if (hash.get('edit')) editEntry(+hash.get('edit'));
 };
 let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE)); } catch {}
 // show the saved copy now and refresh behind it; except for a card's แก้ไข link, whose entry is usually newer than the copy
 if (cached?.settings && !hash.get('edit')) { S = cached; start(); load(); }
-else load().then(start);
+else load(true).then(ok => ok && start());
 </script>
 </body>
 </html>

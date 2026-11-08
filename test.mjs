@@ -1,12 +1,18 @@
 // End-to-end check: runs the worker locally against a mock LINE + Gemini.
-//   node test.mjs
+//   npm install, then npm test (or node test.mjs)
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn, spawnSync} from 'node:child_process';
 import {createHmac} from 'node:crypto';
 import {mkdtempSync} from 'node:fs';
 import {createServer} from 'node:http';
+import {createRequire} from 'node:module';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+
+// the project's own wrangler, started with node itself: spawning npx needs a shell on Windows
+let wrangler;
+try { wrangler = createRequire(import.meta.url).resolve('wrangler/package.json').replace(/package\.json$/, 'bin/wrangler.js'); }
+catch { throw new Error('wrangler is not installed: run npm install first'); }
 
 const MOCK = 8798, PORT = 8799, base = `http://127.0.0.1:${PORT}`, mockUrl = `http://127.0.0.1:${MOCK}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -39,7 +45,7 @@ const mock = createServer(async (req, res) => {
 }).listen(MOCK);
 
 const vars = {LINE_CHANNEL_SECRET: 'dev', LINE_CHANNEL_ACCESS_TOKEN: 'dev', GEMINI_API_KEY: 'dev', LINE_API: mockUrl, LINE_DATA_API: mockUrl, GEMINI_API: mockUrl, GEMINI_MODEL: 'busy-model,slow-model,ok-model', GEMINI_FAST_MODEL: 'fast-model'};
-const dev = spawn('npx', ['wrangler', 'dev', '--port', String(PORT), '--test-scheduled', '--persist-to', mkdtempSync(join(tmpdir(), 'paakeen-')),
+const dev = spawn(process.execPath, [wrangler, 'dev', '--port', String(PORT), '--test-scheduled', '--persist-to', mkdtempSync(join(tmpdir(), 'paakeen-')),
   ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`])], {stdio: process.env.DEBUG ? 'inherit' : 'ignore'});
 
 async function hook(ev, uid = 'u1', secret = 'dev') {
@@ -145,6 +151,11 @@ try {
   await api(t2, 'PUT', `entries/${coffee.id}`, {amount: 1});
   assert.equal((await api(t2, 'GET', 'state')).entries.length, 0);
   assert.equal((await api(t1, 'GET', 'state')).entries.find(e => e.id === coffee.id).amount, 60);
+  // nor can another user's category or payment channel be put on an entry or a recurring entry
+  const other = await api(t2, 'GET', 'state');
+  assert.equal(await api(t1, 'PUT', `entries/${coffee.id}`, {category_id: other.categories[0].id}), 400);
+  assert.equal(await api(t1, 'PUT', `entries/${coffee.id}`, {channel_id: other.channels[0].id}), 400);
+  assert.equal(await api(t1, 'POST', 'recurring', {kind: 'expense', amount: 1, freq: 'daily', start: new Date().toISOString().slice(0, 10), category_id: other.categories[0].id}), 400);
   assert.equal(await api(t1, 'PUT', 'settings', {cycle_day: 32}), 400);
   assert.deepEqual(await api(t1, 'PUT', 'settings', {cycle_day: 31}), {});
   assert.equal((await say('สรุป'))[0].type, 'flex');  // a day-31 cycle still resolves in a 30-day month
@@ -152,6 +163,10 @@ try {
   state = await api(t1, 'GET', 'state');
   assert.equal(state.settings.cycle_day, 25);
   assert.equal('hacked' in state.settings, false);
+  // two settings saved at the same moment both stay (each request writes only its own keys)
+  await Promise.all([api(t1, 'PUT', 'settings', {theme: 'dark'}), api(t1, 'PUT', 'settings', {currency: '$'}), api(t1, 'PUT', 'settings', {lang: 'en'})]);
+  assert.deepEqual((({theme, currency, lang}) => ({theme, currency, lang}))((await api(t1, 'GET', 'state')).settings), {theme: 'dark', currency: '$', lang: 'en'});
+  await api(t1, 'PUT', 'settings', {theme: 'auto', currency: '฿', lang: 'th'});
 
   // recurring: catches up once, never twice, even with simultaneous requests
   const start = new Date(Date.now() - 2 * 864e5 + 7 * 36e5).toISOString().slice(0, 10);  // two days ago, Bangkok time
@@ -259,6 +274,8 @@ try {
 
   console.log('ok');
 } finally {
-  dev.kill();
+  // Windows doesn't pass the stop on to wrangler's own children (the runtime), which would keep the port
+  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(dev.pid), '/T', '/F']);
+  else dev.kill();
   mock.close();
 }

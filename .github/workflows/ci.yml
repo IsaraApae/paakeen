@@ -1,0 +1,27 @@
+# On every push to main and every pull request: syntax-check, bundle the worker (no deploy), and run the end-to-end
+# test, which starts the worker locally against a mock LINE and Gemini. Nothing here needs a secret or deploys.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test

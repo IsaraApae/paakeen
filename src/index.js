@@ -2,6 +2,7 @@
 // The web app itself is public/index.html, served as a static asset.
 // Check: node test.mjs
 import '../public/report.js';  // defines globalThis.monthReport, shared with the web app
+import '../public/categories.js';  // defines globalThis.CATEGORY_LOOK, shared with the web app
 
 const RED = '#C24A44', GREEN = '#35805A', GREY = '#6E6E73';
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -74,9 +75,16 @@ const init = env => ready ??= env.DB.prepare('SELECT 1 FROM recurring INDEXED BY
 const q = (env, sql, ...args) => env.DB.prepare(sql).bind(...args);
 const all = async (env, sql, ...args) => (await q(env, sql, ...args).all()).results;
 const settings = u => ({...DEFAULT_SETTINGS, ...JSON.parse(u.settings)});
+// Only the keys being changed are written, inside the database: rewriting the whole object from a copy read earlier
+// let two requests at once (a reply's steps and the chat-menu refresh, or two settings saved in the app) undo each other.
+const writeSettings = (env, uid, patch) => {
+  const keys = Object.keys(patch);  // keys come from this file or the SETTINGS whitelist, never from a request
+  return keys.length ? q(env, `UPDATE users SET settings = json_set(settings${', ?, json(?)'.repeat(keys.length)}) WHERE id = ?`,
+    ...keys.flatMap(k => ['$.' + k, JSON.stringify(patch[k])]), uid).run() : null;
+};
 async function saveSettings(env, u, patch) {
   u.settings = JSON.stringify({...JSON.parse(u.settings), ...patch});
-  await q(env, 'UPDATE users SET settings = ? WHERE id = ?', u.settings, u.id).run();
+  await writeSettings(env, u.id, patch);
 }
 
 async function getUser(env, uid, create) {
@@ -355,11 +363,8 @@ const bubble = (title, sub, body, actions, char) => ({
 });
 const flex = (alt, bubbles) => ({type: 'flex', altText: alt.slice(0, 400), contents: bubbles.length === 1 ? bubbles[0] : {type: 'carousel', contents: bubbles.slice(0, 12)}});
 
-// same as public/index.html: expense-category colours: the soft set, without green (green means รายรับ); a category uses its own choice, else the next
-const PAL = ['#E58C84', '#E8AC72', '#DDC46A', '#7FC4BD', '#86B2DE', '#9F9DDA', '#C3A0D8', '#E39AB4', '#BBA38C', '#92C1D1', '#A9A9B0'];
-const INCOME_COLOUR = '#35805A';  // income categories use the same green as รายรับ in สรุป
-// same as public/index.html: the built-in categories' emoji; a category's own choice wins
-const CAT_EMOJI = {'อาหาร': '🍜', 'เครื่องดื่ม': '🧋', 'ขนมหวาน': '🍰', 'บันเทิง': '🎬', 'ชอปปิ้ง': '🛍️', 'เดินทาง': '🚗', 'ค่าน้ำค่าไฟ': '💡', 'เรียน': '📚', 'ของขวัญ': '🎁', 'อื่นๆ': '📦', 'เงินเดือน': '💰'};
+// the category colours and the built-in categories' emoji, from public/categories.js like the web app
+const {PAL, INCOME_COLOUR, CAT_EMOJI} = globalThis.CATEGORY_LOOK;
 const catEmoji = (name, own) => own || CAT_EMOJI[name] || '';
 // a category's badge, as in the web app: a tinted rounded square with its emoji, or its colour when it has none
 const badge = (colour, emoji, size) => ({type: 'box', layout: 'vertical', flex: 0, width: size, height: size, cornerRadius: '10px', backgroundColor: colour + '33', justifyContent: 'center', alignItems: 'center',
@@ -435,7 +440,7 @@ const catRow = (s, cats, sum, r) => {
 async function summaryMsg(env, origin, u) {
   const s = settings(u), start = cycleOf(s).from;
   const [rows, cats] = await Promise.all([all(env, `SELECT e.kind, COALESCE(c.name, 'อื่นๆ') AS name, SUM(e.amount) AS total FROM entries e
-    LEFT JOIN categories c ON c.id = e.category_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start),
+    LEFT JOIN categories c ON c.id = e.category_id AND c.user_id = e.user_id WHERE e.user_id = ? AND e.ts >= ? GROUP BY e.kind, name ORDER BY total DESC`, u.id, start),
     all(env, "SELECT name, color, emoji FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id)]);
   const total = kind => rows.filter(r => r.kind === kind).reduce((a, r) => a + r.total, 0);
   const left = total('income') - total('expense');
@@ -492,7 +497,8 @@ const skipButton = ids => skip(`chskip:${ids}`);
 // The saved card for one entry as it is now in the database.
 async function entryCard(env, origin, u, id) {
   const [e, expenseCats] = await Promise.all([q(env, `SELECT e.*, c.name AS category, c.color, c.emoji, c.kind AS ckind, ch.name AS channel FROM entries e
-    LEFT JOIN categories c ON c.id = e.category_id LEFT JOIN channels ch ON ch.id = e.channel_id WHERE e.id = ? AND e.user_id = ?`, id, u.id).first(),
+    LEFT JOIN categories c ON c.id = e.category_id AND c.user_id = e.user_id LEFT JOIN channels ch ON ch.id = e.channel_id AND ch.user_id = e.user_id
+    WHERE e.id = ? AND e.user_id = ?`, id, u.id).first(),
     all(env, "SELECT id FROM categories WHERE user_id = ? AND kind = 'expense' ORDER BY sort, id", u.id)]);
   if (!e) return textMsg('ไม่พบรายการนี้แล้วจ้ะ');
   const i = expenseCats.findIndex(c => c.id === e.category_id);
@@ -725,7 +731,7 @@ async function remind(env) {
       if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
     }
     if (!s.remind || now.slice(11) < s.remind || s.last_remind === today) continue;
-    await q(env, 'UPDATE users SET settings = ? WHERE id = ?', JSON.stringify({...JSON.parse(u.settings), last_remind: today}), u.id).run();
+    await writeSettings(env, u.id, {last_remind: today});
     if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
     }
@@ -785,13 +791,17 @@ async function api(env, u, method, path, body, state) {
     return {user: {name: u.name, picture: u.picture}, settings: settings(u), categories, channels, recurring, entries};
   }
   if (method === 'PUT' && path.join('/') === 'settings') {
-    await q(env, 'UPDATE users SET settings = ? WHERE id = ?', JSON.stringify({...JSON.parse(u.settings), ...validated(SETTINGS, body)}), uid).run();
+    await writeSettings(env, uid, validated(SETTINGS, body));
     return {};
   }
   const [table, id, ...extra] = path;
   need(Object.hasOwn(TABLES, table) && !extra.length);
   const [columns, required] = TABLES[table];
   const vals = validated(columns, body), keys = Object.keys(vals);
+  // a category or channel id must be one of the user's own; another user's would put its name on this user's LINE cards
+  await Promise.all([['category_id', 'categories'], ['channel_id', 'channels']].map(async ([key, owner]) => {
+    if (vals[key] != null) need(await q(env, `SELECT 1 FROM ${owner} WHERE id = ? AND user_id = ?`, vals[key], uid).first());
+  }));
   if (method === 'POST' && id === undefined) {
     need(required.every(k => k in vals));
     if (table === 'channels') need((await q(env, 'SELECT COUNT(*) AS n FROM channels WHERE user_id = ?', uid).first()).n < 10);
