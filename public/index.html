@@ -338,7 +338,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '
 if (location.hash) history.replaceState(null, '', location.pathname + location.search);  // keep the token out of the address bar and history
 onhashchange = () => location.reload();  // a fresh link tapped while the app is already open
 
-let S, tab = 'sum', charts = [], after = [];
+let S, tab = 'sum', charts = [], after = [], waiting = [];  // waiting: charts the last render drew before Chart.js arrived
 addEventListener('keydown', e => e.key === 'Tab' && document.documentElement.classList.add('kbd'));
 const applyTheme = t => { const r = document.documentElement; t === 'light' || t === 'dark' ? r.dataset.theme = t : r.removeAttribute('data-theme'); try { localStorage.setItem('theme', t); } catch {} topTint(); };
 // LINE and Safari colour the strips behind the clock and the bottom bar from the page, but only look again when a
@@ -498,7 +498,7 @@ function translate(root) {
   for (let n; (n = w.nextNode());) { const k = n.nodeValue.trim(); if (EN[k]) n.nodeValue = n.nodeValue.replace(k, EN[k]); }
 }
 function chart(id, type, labels, datasets, options = {}, plugins = []) {
-  if (window.Chart) after.push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options, plugins})));
+  (window.Chart ? after : waiting).push(() => charts.push(new Chart($('#' + id), {type, data: {labels, datasets}, options, plugins})));
   return `<canvas id="${id}" style="aspect-ratio:${options.aspectRatio || (type === 'doughnut' ? 1 : 2)}"></canvas>`;  // Chart.js's default shapes
 }
 // Chart.js's own slice spacing leaves uneven gaps (small slices nearly touch, the one at the top looks wider), so the
@@ -753,20 +753,25 @@ async function api(method, path, body) {
 // opens straight away with it while fresh data loads; a few seconds old at most, then replaced
 const CACHE = 'state:' + (token || '').split('.')[0];
 // Resolves to whether fresh data arrived; when it didn't, api() has already said why on screen.
-async function load() {
+// first: the opening load, which start() draws once it has set the opening tab, so the page is drawn once, not twice
+async function load(first) {
   try { S = await api('GET', 'state'); } catch { return false; }
-  render();
+  if (!first) render();
   try { localStorage.setItem(CACHE, JSON.stringify(S)); } catch {}  // full or blocked storage: just no head start next time
   return true;
 }
-const retry = () => { $('#main').innerHTML = `<p class="empty">กำลังโหลด…</p>`; load().then(ok => ok && start()); };
-document.getElementById('chartjs').addEventListener('load', () => S && render());  // charts appear once the library is in
+const retry = () => { $('#main').innerHTML = `<p class="empty">กำลังโหลด…</p>`; load(true).then(ok => ok && start()); };
+// charts take their colours and font from the page's CSS.
+// no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
+const chartDefaults = () => { Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}); Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; };
+// once the library is in, the charts the page is waiting for are drawn on the canvases already there (sized for them),
+// instead of drawing the whole page again
+document.getElementById('chartjs').addEventListener('load', () => { if (!waiting.length) return; chartDefaults(); waiting.forEach(f => f()); waiting = []; });
 function render() {
   applyTheme(S.settings.theme);
   document.documentElement.lang = S.settings.lang === 'en' ? 'en' : 'th';  // so screen readers pick the right voice
-  charts.forEach(c => c.destroy()); charts = []; after = [];
-  // no animation: charts are rebuilt on every tab switch and tap, and each one replayed for a full second
-  if (window.Chart) Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}), Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  charts.forEach(c => c.destroy()); charts = []; after = []; waiting = [];
+  if (window.Chart) chartDefaults();
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'report' ? 'sum' : tab)));
   document.body.classList.toggle('selecting', !!ui.sel);
   const chips = $('.chips'), was = chips && [chips.dataset.k, chips.scrollLeft];
@@ -1100,20 +1105,21 @@ const VIEWS = {
 const start = () => {
   ui.month = today().slice(0, 7);
   Object.assign(ui.f, cycle(0));
-  render();
   let back = null; try { back = sessionStorage.getItem('tab'); sessionStorage.removeItem('tab'); } catch {}
   const rep = hash.get('rep');  // the report card's link names its period
   if (rep) { const from = cycle(0).from; ui.repOff = Math.min(0, (rep.slice(0, 4) - from.slice(0, 4)) * 12 + (rep.slice(5, 7) - from.slice(5, 7))); }
+  // the page is drawn once, straight on the opening tab
   if (hash.get('tab') === 'report' && !rep) openReport();
   else if (hash.get('tab') in VIEWS) go(hash.get('tab'));  // the chat menu's tiles
   else if (back in VIEWS) go(back);  // after a reload from ตั้งค่า
+  else render();
   if (hash.get('add')) editEntry();
   if (hash.get('edit')) editEntry(+hash.get('edit'));
 };
 let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE)); } catch {}
 // show the saved copy now and refresh behind it; except for a card's แก้ไข link, whose entry is usually newer than the copy
 if (cached?.settings && !hash.get('edit')) { S = cached; start(); load(); }
-else load().then(ok => ok && start());
+else load(true).then(ok => ok && start());
 </script>
 </body>
 </html>
