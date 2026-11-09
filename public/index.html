@@ -50,7 +50,8 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
   --expense-text: #C24A44; --income-text: #35805A;  /* amounts stay darker on the light background so they read clearly */
   --glass: #FFFFFF; --glass-strong: #FFFFFF; --glass-edge: #0000000A;
   --glass-shine: 0 0 #0000;
-  --glass-shadow: 0 1px 2px #0000000A, 0 10px 28px -14px #00000029;
+  --glass-shadow: 0 1px 2px #0000000A, 0 12px 30px -16px #00000030;
+  --key: #FFFFFF; --key-shadow: 0 1px 0 #0000001A, 0 1px 3px #0000000F;  /* the number pad's keys */
   --sheet: #F5F5F7; --dim: #00000040;
   --top-solid: #F5F5F7;  /* the page background; LINE fills the strip behind the clock with this one colour (theme-color) */
 }
@@ -64,6 +65,7 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
     --glass-shine: 0 0 #0000;
     --glass-shadow: 0 10px 28px -14px #000000B3;
     --sheet: #141416; --dim: #00000080;
+    --key: #2C2C30; --key-shadow: 0 1px 0 #00000066;
     --top-solid: #0F0F11;
   }
 }
@@ -75,6 +77,7 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
   --glass-shine: 0 0 #0000;
   --glass-shadow: 0 10px 28px -14px #000000B3;
   --sheet: #141416; --dim: #00000080;
+  --key: #2C2C30; --key-shadow: 0 1px 0 #00000066;
   --top-solid: #0F0F11;
 }
 :root[data-theme=light] { color-scheme: light; }
@@ -312,6 +315,29 @@ dialog .group { background: var(--surface); }
 .rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
 .rep-title h1 { min-width: 0; }
 .says { margin: 0; padding: 16px 20px 16px 36px; display: grid; gap: 8px; font-size: 15px; }
+/* the app's own number pad: white keys on the sheet's grey in light, raised grey keys in dark */
+.keypad { display: grid; gap: 8px; }
+.keypad[hidden] { display: none; }
+dialog.sheet .keypad { position: sticky; bottom: 0; z-index: 2; margin: 0 -16px -20px; padding: 6px 12px calc(12px + env(safe-area-inset-bottom));
+  background: var(--sheet); border-top: .5px solid var(--sep); box-shadow: 0 -14px 28px -20px #00000059; }
+.kp-bar { display: flex; justify-content: flex-end; }
+.kp-bar button { color: var(--red); font-size: 16px; font-weight: 600; padding: 6px 10px; }
+.kp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.kp-keys button { height: 52px; border-radius: 14px; background: var(--key); box-shadow: var(--key-shadow); color: var(--label); font-size: 26px; font-weight: 500;
+  font-variant-numeric: tabular-nums; display: grid; place-items: center; touch-action: manipulation; transition: transform .12s, background .12s; }
+.kp-keys button:active { background: var(--fill); transform: scale(.95); }
+.kp-keys button svg { width: 26px; height: 26px; stroke-width: 1.7; }
+dialog.alert .kp-keys button { height: 48px; }
+/* the balance's two boxes: an arrow in the kind's colour beside the label and amount */
+.stat { display: flex; align-items: center; gap: 10px; }
+.arrow { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; background: color-mix(in srgb, currentColor 15%, transparent); }
+.arrow svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.rate { font-size: 22px; font-weight: 600; color: var(--label2); letter-spacing: -.01em; }
+/* a row that leads somewhere: a tinted icon tile, a name and a grey line under it */
+.tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red); }
+.tile svg { width: 20px; height: 20px; }
+.lead { display: grid; }
+.initial { width: 52px; height: 52px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red); font-size: 22px; font-weight: 700; box-shadow: none; }
 #toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--label); padding: 10px 18px; border-radius: 999px; font-size: 15px; display: none; z-index: 5; white-space: nowrap; }
 </style>
 </head>
@@ -377,6 +403,9 @@ const I = {
   select: svg('M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6'), trash: svg('M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5'),
   tag: svg('M3 12V4h8l10 10-8 8zM7.5 8.5h.01'), grip: svg('M4 8h16M4 12h16M4 16h16'),
   bulb: svg('M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z'),
+  back: svg('M21 5H9l-6 7 6 7h12zM17 9l-6 6M11 9l6 6'),  // the number pad's delete key
+  in: svg('M17 7L7 17M16 17H7V8'), out: svg('M7 17L17 7M8 7h9v9'),  // money coming in, going out
+  doc: svg('M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h4'),
 };
 const CHEV = I.chevR.replace('<svg', '<svg class="chev"');
 const EN = {
@@ -654,11 +683,49 @@ function pinEnd(i, ms = 600) {
   setTimeout(() => document.removeEventListener('selectionchange', end, true), ms);
   [0, 50, 150, 300, 500].forEach(t => setTimeout(end, t));
 }
+// ---------- the app's own number pad ----------
+// The phone's keyboard can't take the app's colours, so number fields open this pad instead, in the light or dark theme.
+// dec: decimals allowed (2 for money, 0 for a day); bar: in the entry sheet it slides up with the field and has a เสร็จ bar
+const keypad = (dec, bar) => `<div class="keypad" ${bar ? 'hidden' : ''}>${bar ? '<div class="kp-bar"><button type="button" data-k="done">เสร็จ</button></div>' : ''}
+  <div class="kp-keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', dec ? '.' : '', '0', 'del'].map(k => !k ? '<span></span>'
+    : `<button type="button" data-k="${k}" ${k === 'del' ? `aria-label="${tr('ลบ')}"` : ''}>${k === 'del' ? I.back : k}</button>`).join('')}</div></div>`;
+// what a field may hold: digits, one point and up to dec decimals, never above max
+const padOk = (v, dec, max) => new RegExp(dec ? `^\\d{0,9}(\\.\\d{0,${dec}})?$` : '^\\d{0,9}$').test(v) && !(max && +v > max);
+// the field after one key: a leading 0 is replaced, a point on its own becomes 0., anything that wouldn't fit is ignored
+function padNext(v, k, dec, max) {
+  const next = k === 'del' ? v.slice(0, -1) : k === '.' ? (v.includes('.') ? v : (v || '0') + '.') : v === '0' ? k : v + k;
+  return padOk(next, dec, max) ? next : v;
+}
+function wirePad(input, pad) {
+  const dec = +input.dataset.pad, max = +input.dataset.max || 0;
+  let last = input.value;
+  // an empty or zero amount (or a day outside 1-max) stops the form being saved, with the reason
+  const check = () => input.setCustomValidity(+input.value > 0 ? '' : max ? L(`ใส่ตัวเลข 1 ถึง ${max}`, `Enter a number from 1 to ${max}`) : L('ใส่จำนวนเงินก่อนนะจ๊ะ', 'Enter an amount first'));
+  // typed on a computer's keyboard: keep only what the pad itself could have made
+  input.addEventListener('input', () => { if (!padOk(input.value, dec, max)) input.value = last; last = input.value; check(); });
+  check();
+  pad.addEventListener('mousedown', e => e.preventDefault());  // a key leaves the caret in the field
+  pad.addEventListener('click', e => {
+    const k = e.target.closest('button')?.dataset.k;
+    if (k === 'done') return input.blur();
+    if (k) { input.value = padNext(input.value, k, dec, max); input.dispatchEvent(new Event('input', {bubbles: true})); }
+  });
+  if (pad.hidden) {  // the entry sheet's pad comes up with the amount and goes when anything else is tapped
+    input.addEventListener('focus', () => { pad.hidden = false; });
+    input.addEventListener('blur', () => { pad.hidden = true; });
+    if (document.activeElement === input) pad.hidden = false;  // a new entry's amount: showModal already focused it
+    // a tap anywhere else in the sheet (a category, the note) puts the pad away, as tapping outside a keyboard does
+    input.form.addEventListener('pointerdown', e => { if (!pad.hidden && !pad.contains(e.target) && !input.parentElement.contains(e.target)) input.blur(); });
+  }
+}
+
 function ask(heading, fields, {del, ok = 'บันทึก', hint, cta, sub} = {}) {
   const d = $('#dlg'), sheet = fields.some(f => ['amount', 'chips', 'checks'].includes(f.type));
-  const attrs = f => `name="${f.k}" type="${f.type || 'text'}" value="${esc(f.value ?? '')}" ${f.max ? `min="1" max="${f.max}" step="1" inputmode="numeric"` : f.type === 'number' ? 'step="0.01" min="0" inputmode="decimal" placeholder="0"' : ''} ${f.req ? 'required' : ''}`;
+  // number fields take the app's own number pad (inputmode none keeps the phone's keyboard shut); max: a whole number up to it
+  const numeric = f => f.max || f.type === 'number';
+  const attrs = f => `name="${f.k}" type="text" value="${esc(f.value ?? '')}" ${numeric(f) ? `inputmode="none" autocomplete="off" data-pad="${f.max ? 0 : 2}" ${f.max ? `data-max="${f.max}"` : ''}` : ''} ${f.req ? 'required' : ''}`;
   const block = f =>
-    f.type === 'amount' ? `<label class="amount"><span>${esc(S.settings.currency)}</span><input name="${f.k}" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0" required aria-label="${tr('จำนวนเงิน')}"
+    f.type === 'amount' ? `<label class="amount"><span>${esc(S.settings.currency)}</span><input name="${f.k}" type="text" inputmode="none" autocomplete="off" data-pad="2" placeholder="0" required aria-label="${tr('จำนวนเงิน')}"
       value="${esc(f.value)}" ${f.value === '' ? 'autofocus' : ''} style="width:${Math.max(1, String(f.value).length) + .5}ch" oninput="this.style.width = Math.max(1, this.value.length) + .5 + 'ch'"></label>`
     : f.type === 'seg' ? `<div class="seg">${f.options.map(([v, l]) => `<label><input type="radio" name="${f.k}" value="${v}" ${v === f.value ? 'checked' : ''} ${f.js ? `onchange="${f.js}"` : ''}><span>${l}</span></label>`).join('')}</div>`
     : f.type === 'chips' ? `<div class="sect ${f.cls || ''}"><span>${f.label}</span></div><div class="picks ${f.cls || ''}">${f.options.map(([v, l, colour, cls, emoji]) =>
@@ -686,9 +753,11 @@ function ask(heading, fields, {del, ok = 'บันทึก', hint, cta, sub} =
         ${cta ? '' : `<button class="ib tint" value="ok" aria-label="${tr('บันทึก')}">${I.check}</button>`}</div>
         ${sub ? `<span class="sub" style="text-align:center">${sub}</span>` : ''}${body}
         ${cta ? `<button class="pill tint wide" style="height:52px;margin-top:6px" value="ok">${cta}</button>` : ''}
-        ${del ? '<button class="pill wide danger" value="del" formnovalidate>ลบ</button>' : ''}</form>`
+        ${del ? '<button class="pill wide danger" value="del" formnovalidate>ลบ</button>' : ''}
+        ${fields.some(f => f.type === 'amount') ? keypad(2, true) : ''}</form>`
     : `<form method="dialog"><b tabindex="-1">${heading}</b>
         ${fields.map(f => block(f) || `<input class="bigfield" ${attrs(f)} placeholder="${esc(tr(f.label))}" aria-label="${esc(tr(f.label))}" autofocus>`).join('')}
+        ${fields.some(numeric) ? keypad(fields.some(f => f.max) ? 0 : 2, false) : ''}
         ${hint ? `<span class="sub">${hint}</span>` : ''}
         <div class="two"><button class="pill" value="" formnovalidate>ยกเลิก</button><button class="pill tint" value="ok">${ok}</button></div>
         ${del ? '<button class="link" value="del" formnovalidate>ลบ</button>' : ''}</form>`;
@@ -700,6 +769,7 @@ function ask(heading, fields, {del, ok = 'บันทึก', hint, cta, sub} =
   mirror();
   d.returnValue = '';
   d.showModal();
+  d.querySelectorAll('[data-pad]').forEach(i => wirePad(i, d.querySelector('.keypad')));
   // Entering a text field puts the caret after the last character. iPhone (LINE's browser) moves the caret on its own
   // a moment after focus, and again where the finger lands, so for a short while any move away from the end is undone.
   d.querySelectorAll('input[type=text]').forEach(i => {
