@@ -48,7 +48,7 @@ The hamsters are from [silly hamsters](https://store.line.me/stickershop/product
 
 ## Web app
 
-Opened from the chat menu with a personal signed link. No password needed.
+Opened from the chat menu with a personal signed link. No password needed. Amounts are typed on the app's own number pad, drawn in its light or dark theme, rather than the phone's keyboard.
 
 | Tab | What it shows |
 |---|---|
