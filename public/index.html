@@ -31,14 +31,17 @@ let token = hash.get('t');
 try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t'); } catch {}
 let early = token && fetch('/api/state', {headers: {Authorization: 'Bearer ' + token}});
 early && early.catch(() => {});  // no connection: api() reports it when load() asks for this answer
+// Chart.js is asked for at the same moment, and only with a link: the page a visitor without one sees draws no chart.
+// A script added this way loads alongside the page and data. integrity: the browser refuses the file if the CDN ever
+// serves anything else (the page holds the login link and every entry); take a new version's hash from cdnjs.com
+// along with its address
+const chartjs = token && document.head.appendChild(Object.assign(document.createElement('script'), {
+  src: 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js', crossOrigin: 'anonymous',
+  integrity: 'sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==',
+}));
 </script>
 <link rel="preload" href="/categories.js" as="script">
 <link rel="preload" href="/report.js" as="script">  <!-- its tag is at the end of this long page, found only once nearly all of it is in -->
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>  <!-- crossorigin: the scripts below load in that mode, for their integrity check -->
-<!-- async: the page and data load alongside it. integrity: the browser refuses the file if the CDN ever serves anything else
-     (the page holds the login link and every entry); take a new version's hash from cdnjs.com along with its address -->
-<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js"
-  integrity="sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==" crossorigin="anonymous"></script>
 <style>
 /* Solid white cards with soft shadows on a plain background; the red gradient is kept for the + button */
 :root {
@@ -817,7 +820,10 @@ async function api(method, path, body) {
   const r = req && await req.catch(() => null);  // null: no connection
   if (!token || r?.status === 401) {
     try { localStorage.removeItem(CACHE); } catch {}
-    $('#main').innerHTML = '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>';
+    // with no link at all (someone who came from the README, say) nothing has expired: say what this page is instead
+    $('#main').innerHTML = token
+      ? '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>'
+      : '<p class="empty">ป้าคีนช่วยจดรายรับรายจ่ายจากแชต LINE จ้ะ หน้านี้เปิดด้วยลิงก์ส่วนตัวของแต่ละคน: แตะเมนูในแชตของป้าคีน หรือพิมพ์ “แอป” ส่งหาป้าคีนใน LINE<br><br>ป้าคีน records income and expenses from a LINE chat. This page opens with your own personal link: tap the menu in the bot’s chat, or send it “แอป”.</p>';
     throw new Error('auth');
   }
   if (!r?.ok) {
@@ -845,7 +851,7 @@ const retry = () => { $('#main').innerHTML = `<p class="empty">กำลัง�
 const chartDefaults = () => { Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}); Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; };
 // once the library is in, the charts the page is waiting for are drawn on the canvases already there (sized for them),
 // instead of drawing the whole page again
-document.getElementById('chartjs').addEventListener('load', () => { if (!waiting.length) return; chartDefaults(); waiting.forEach(f => f()); waiting = []; });
+chartjs && chartjs.addEventListener('load', () => { if (!waiting.length) return; chartDefaults(); waiting.forEach(f => f()); waiting = []; });
 function render() {
   applyTheme(S.settings.theme);
   document.documentElement.lang = S.settings.lang === 'en' ? 'en' : 'th';  // so screen readers pick the right voice
@@ -860,7 +866,7 @@ function render() {
   if (S.settings.lang === 'en') translate(document.body);
   after.forEach(f => f());
 }
-const go = t => { tab = t; ui.sel = null; ui.sort = false; render(); scrollTo(0, 0); };
+const go = t => { if (!S) return; tab = t; ui.sel = null; ui.sort = false; render(); scrollTo(0, 0); };  // no data, no tabs: that page keeps its message
 const U = o => { Object.assign(ui, o); render(); };
 const F = o => { Object.assign(ui.f, o); render(); };
 // a language change reloads (every label is rebuilt); the open tab is kept so it doesn't jump back to สรุป
