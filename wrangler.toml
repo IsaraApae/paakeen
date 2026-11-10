@@ -14,6 +14,11 @@ database_id = "80bb3b33-144e-40b6-b6b1-c7d66c1be89b"
 [triggers]
 crons = ["*/5 * * * *"]  # daily reminders (up to 5 minutes late) and chat-menu refreshes
 
+# keep the worker's logs (errors, and each reply's timings) for a few days, so they can be read in the Cloudflare
+# dashboard afterwards and not only while `wrangler tail` is running
+[observability]
+enabled = true
+
 [vars]
 APP_ORIGIN = "https://paakeen.p-isarabhakdi.workers.dev"  # used by the scheduled job, which has no request to read it from
 # tried in order; the next one is used when a model is overloaded or out of free quota
