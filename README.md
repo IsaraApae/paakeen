@@ -48,7 +48,7 @@ The hamsters are from [silly hamsters](https://store.line.me/stickershop/product
 
 ## Web app
 
-Opened from the chat menu with a personal signed link. No password needed. Amounts are typed on the app's own number pad, drawn in its light or dark theme, rather than the phone's keyboard.
+Opened from the chat menu with a personal signed link. No password needed. Opened without a link, the page says what ป้าคีน is and how to get one. Amounts are typed on the app's own number pad, drawn in its light or dark theme, rather than the phone's keyboard.
 
 | Tab | What it shows |
 |---|---|
@@ -70,13 +70,15 @@ Opened from the chat menu with a personal signed link. No password needed. Amoun
 ## How it works
 
 - `src/index.js`: one Cloudflare Worker handles the LINE webhook (with signature check), calls Gemini, stores data in D1, serves the web app's API, and runs a cron every 5 minutes for reminders and chat-menu refreshes.
-- `public/index.html`: the web app, a single file with no build step. Chart.js and SheetJS load from cdnjs with an integrity hash, so the browser refuses a file that has changed; to update one, change its address and take the new hash from [cdnjs.com](https://cdnjs.com).
+- `public/index.html`: the web app, a single file with no build step. Chart.js and SheetJS load from cdnjs with an integrity hash, so the browser refuses a file that has changed (Chart.js only when there is a link to open, SheetJS only when someone exports to Excel); to update one, change its address and take the new hash from [cdnjs.com](https://cdnjs.com).
 - **Gemini:** typed messages, slips, voice notes and PDFs all try the fastest model first. If a model is busy or out of free quota, the next one in the list is used, and if it is slow, the next one is started alongside it. Both lists are in `wrangler.toml`.
 - **Privacy:** only 1:1 chats are read, never group chats. Each user's web app link is signed and expires, and the API only accepts a user's own categories and payment channels. `public/_headers` stops other sites from showing the app in a frame and from receiving its address.
+- **Chat menu:** each user has their own, because its tiles carry their signed link. It is rebuilt every 20 days, well before the 45-day link in it runs out. LINE keeps at most 1000 menus for a bot, so a menu that can't be finished (its picture, or giving it to a user who has left LINE) is taken down again and tried an hour later.
+- **Reading and reach:** red and green text is at least 4.5:1 against what it sits on in both themes; the light theme writes it in a darker red and green than its buttons. Entries are buttons, and every sheet and dialog carries its heading as its name, so the keyboard and screen readers get to them.
 - `public/report.js`: the monthly report's numbers and analysis, one copy used by both the web app and the worker. The analysis is written by rules, so it costs no AI quota.
 - `public/categories.js`: the category colours and the built-in categories' emoji, shared the same way, so the LINE cards and the web app always match.
 - `public/chars/*.png`: the hamsters for the LINE cards, one per mood (© shiba, used with permission). After replacing one, bump `CHAR_VERSION` in `src/index.js`, because LINE caches images by address.
-- **Speed:** the tables are indexed per user, so a query reads only that user's rows, which also keeps D1's free daily reads for real use. Reads that don't depend on each other go to D1 together rather than one after another, and the web app asks for its data from the top of the page, so it doesn't wait for the rest of the page first. It draws the page once when it opens, and when Chart.js arrives it draws only the charts, on canvases already sized for them.
+- **Speed:** the tables are indexed per user, so a query reads only that user's rows, which also keeps D1's free daily reads for real use. Reads that don't depend on each other go to D1 together rather than one after another, and the web app asks for its data from the top of the page, so it doesn't wait for the rest of the page first. It draws the page once when it opens, and when Chart.js arrives it draws only the charts, on canvases already sized for them. Recategorising or deleting several chosen entries is one request, however many there are.
 - **Logs:** `wrangler.toml` turns on Workers Logs, so errors and each reply's timings can be read in the Cloudflare dashboard for a few days afterwards, not only while `wrangler tail` is running.
 - `make-menu.py`: draws the chat menu as `menu-source.svg` on any system, and on macOS also renders it to `public/menu.jpg`; elsewhere, render the SVG with a headless browser (see the script's note). Its tile boxes must match `MENU_TILES` in `src/index.js`, and `MENU_VERSION` there is bumped with every new menu.
 - `test.mjs`: an end-to-end check that runs the worker locally against a mock LINE and Gemini (`npm test`).
@@ -92,7 +94,7 @@ Needs Node.js 20 or newer.
 3. `npm run dev` starts the worker on http://localhost:8787 with a local D1 database.
 4. In a second terminal, `npm run seed` adds a test user with a few months of entries and prints a link that opens the web app as that user.
 
-`npm run check` and `npm test` also run in CI on every push to main and every pull request.
+`npm run check` and `npm test` also run in CI on every push to main and every pull request. `main` takes changes only through a pull request whose CI is green.
 
 ## Settings
 
