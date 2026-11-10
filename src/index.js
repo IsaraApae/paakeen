@@ -763,7 +763,8 @@ async function remind(env) {
       await saveSettings(env, u, {last_report: c.from});
       if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
     }
-    if (!s.remind || now.slice(11) < s.remind || s.last_remind === today) continue;
+    // this job runs on the 5-minute marks and the day's last is 23:55: a reminder set for after it would never come round
+    if (!s.remind || now.slice(11) < (s.remind > '23:55' ? '23:55' : s.remind) || s.last_remind === today) continue;
     await writeSettings(env, u.id, {last_remind: today});
     if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
