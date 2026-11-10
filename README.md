@@ -113,6 +113,10 @@ Needs Node.js 20 or newer.
 3. `npx wrangler secret put LINE_CHANNEL_SECRET`, then the same for `LINE_CHANNEL_ACCESS_TOKEN` and `GEMINI_API_KEY`.
 4. `npm run deploy`, then set the LINE webhook URL to `https://<your worker>/webhook`.
 
+## Security
+
+Found a way into someone else's entries, or around the signed link? Please report it privately: see [SECURITY.md](SECURITY.md).
+
 ## License
 
 The code is under the [MIT License](LICENSE). The hamster pictures are not: `public/chars/*.png`, `docs/characters.png` and the hamsters in `docs/line-cards.jpg` and `docs/line-report.jpg` are from [silly hamsters](https://store.line.me/stickershop/product/31413469/en) by shiba, © shiba, used here with permission, and may not be reused without shiba's own permission.
