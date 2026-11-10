@@ -47,7 +47,9 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
   --label: #17171A; --label2: #6B6B73; --sep: #3C3C4326;
   /* the same red and green as dark mode, so both themes match */
   --red: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --switch: #34C759;
-  --expense-text: #C24A44; --income-text: #35805A;  /* amounts stay darker on the light background so they read clearly */
+  /* text in red or green is darker on the light background, so it reads clearly: at least 4.5:1 on the cards, the page,
+     the grey boxes and the red tint. --red itself stays for buttons, fills and rings */
+  --red-text: #B03F3A; --expense-text: #B03F3A; --income-text: #317854;
   --glass: #FFFFFF; --glass-strong: #FFFFFF; --glass-edge: #0000000A;
   --glass-shine: 0 0 #0000;
   --glass-shadow: 0 1px 2px #0000000A, 0 12px 30px -16px #00000030;
@@ -60,7 +62,7 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
   :root:not([data-theme=light]) {
     --surface: #1C1C1F; --fill: #7676803D; --track: #78788052;
     --label: #F2F2F7; --label2: #A1A1A8; --sep: #54545899;
-    --red: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
+    --red: #FF6961; --red-text: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
     --glass: #232326; --glass-strong: #3A3A3E; --glass-edge: #FFFFFF14;
     --glass-shine: 0 0 #0000;
     --glass-shadow: 0 10px 28px -14px #000000B3;
@@ -72,7 +74,7 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
 :root[data-theme=dark] {
   --surface: #1C1C1F; --fill: #7676803D; --track: #78788052;
   --label: #F2F2F7; --label2: #A1A1A8; --sep: #54545899;
-  --red: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
+  --red: #FF6961; --red-text: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
   --glass: #232326; --glass-strong: #3A3A3E; --glass-edge: #FFFFFF14;
   --glass-shine: 0 0 #0000;
   --glass-shadow: 0 10px 28px -14px #000000B3;
@@ -115,7 +117,7 @@ button, select, input { font: inherit; color: inherit; margin: 0; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 button:disabled { opacity: .3; }
 :focus, :focus-visible { outline: none; }
-.kbd :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }  /* only once Tab has been used */
+.kbd :focus-visible { outline: 2px solid var(--red-text); outline-offset: 2px; }  /* only once Tab has been used */
 dialog :is(b, input):focus { outline: none; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 /* Chart.js often arrives after the numbers; until then each chart's canvas already has the size it will be drawn at
@@ -135,7 +137,7 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .title { padding: 4px 4px 0; }
 .acts { position: fixed; z-index: 3; top: calc(8px + env(safe-area-inset-top)); right: max(16px, calc(50vw - 264px)); display: flex; align-items: center; gap: 8px; }
 .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--fill); border: .5px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
-.link { color: var(--red); font-size: 17px; padding: 6px 4px; }
+.link { color: var(--red-text); font-size: 17px; padding: 6px 4px; }
 .link:active, .ib:active, .pill:active { opacity: .55; }
 .ib { width: 44px; height: 44px; border-radius: 50%; color: var(--label); display: grid; place-items: center; flex: none; transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
 .ib:active, .pill:active { transform: scale(.94); }
@@ -143,11 +145,11 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .ib.small { width: 32px; height: 32px; color: var(--label2); box-shadow: var(--glass-shine); background: var(--fill); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .ib.small svg { width: 15px; height: 15px; }
 .pill { height: 44px; padding: 0 16px; border-radius: 999px; font-weight: 500; transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
-.pill.on { color: var(--red); font-weight: 600; }
+.pill.on { color: var(--red-text); font-weight: 600; }
 .cluster { display: flex; border-radius: 999px; padding: 0 4px; }
 .cluster button { width: 42px; height: 44px; display: grid; place-items: center; }
 .cluster button:active { opacity: .5; }
-.cluster .accent { color: var(--red); }
+.cluster .accent { color: var(--red-text); }
 
 /* content layer: opaque grouped lists with the larger concentric radius */
 .sect { display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 700; padding: 0 4px; margin: 14px 0 -4px; min-height: 22px; }
@@ -207,8 +209,8 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .chips { display: flex; gap: 8px; overflow-x: auto; margin: -8px -16px; padding: 8px 16px; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; border-radius: 999px; padding: 8px 16px; font-size: 15px; box-shadow: var(--glass-shine), 0 2px 8px -2px #0000001A; }
-.chip.on { background: var(--red-tint); color: var(--red); font-weight: 600; }
-.menu { appearance: none; -webkit-appearance: none; border: 0; background: none; color: var(--red); padding: 0; text-align: right; text-align-last: right; max-width: 62%; min-width: 0; }
+.chip.on { background: var(--red-tint); color: var(--red-text); font-weight: 600; }
+.menu { appearance: none; -webkit-appearance: none; border: 0; background: none; color: var(--red-text); padding: 0; text-align: right; text-align-last: right; max-width: 62%; min-width: 0; }
 input.menu::-webkit-date-and-time-value { text-align: right; }
 .switch { appearance: none; -webkit-appearance: none; width: 64px; height: 28px; border-radius: 999px; background: var(--track); position: relative; flex: none; transition: background .25s; cursor: pointer; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 38px; height: 24px; border-radius: 999px; background: #fff; box-shadow: inset 0 1px 0 #FFFFFF, 0 3px 8px #00000026, 0 1px 1px #00000029; transition: transform .3s cubic-bezier(.16, 1, .3, 1); }
@@ -227,7 +229,7 @@ nav { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, 1fr
 .selbar button:active { background: var(--fill); }
 .selecting .dock { display: none; }
 nav button { padding: 6px 0 5px; border-radius: 999px; color: var(--label); font-size: 11px; font-weight: 500; display: grid; justify-items: center; gap: 1px; transition: background .25s; }
-nav button.on { color: var(--red); font-weight: 600; }
+nav button.on { color: var(--red-text); font-weight: 600; }
 @media (max-width: 359px) { nav button { font-size: 10px; } }  /* 320px phones: วิเคราะห์ and หมวดหมู่ ran into each other at 11px */
 nav svg { width: 24px; height: 24px; stroke-width: 1.8; }
 
@@ -282,7 +284,7 @@ dialog.picker > div { display: grid; gap: 12px; }
 .wheel .colon { position: relative; font-size: 24px; font-weight: 600; padding-bottom: 3px; }
 .center { text-align: center; }
 .optlist { max-height: 58dvh; overflow-y: auto; }
-.optlist .row svg { color: var(--red); width: 20px; height: 20px; }
+.optlist .row svg { color: var(--red-text); width: 20px; height: 20px; }
 .value { color: var(--label2); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
 form[data-kind=income] .only-expense,
 form[data-kind=income] .k-expense, form[data-kind=expense] .k-income { display: none; }
@@ -291,7 +293,7 @@ form[data-kind=income] .k-expense, form[data-kind=expense] .k-income { display: 
 .seg label:has(:checked) { background: var(--glass-strong); font-weight: 600; box-shadow: 0 2px 8px -2px #00000026; }
 .picks { display: flex; flex-wrap: wrap; gap: 8px; }
 .pick { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px; font-size: 15px; cursor: pointer; box-shadow: var(--glass-shine), 0 2px 8px -2px #0000001A; transition: background .2s, color .2s; }
-.pick:has(:checked) { background: var(--red-tint); color: var(--red); border-color: transparent; font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--red); }
+.pick:has(:checked) { background: var(--red-tint); color: var(--red-text); border-color: transparent; font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--red); }
 .pick svg { width: 15px; height: 15px; }
 .grip { width: 44px; height: 44px; margin-right: -12px; display: grid; place-items: center; color: var(--label2); touch-action: none; cursor: grab; }
 .dragging { z-index: 1; background: var(--glass-strong); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-radius: 16px; box-shadow: 0 10px 28px #00000033; }
@@ -300,7 +302,7 @@ form[data-kind=income] .k-expense, form[data-kind=expense] .k-income { display: 
 .sw { position: relative; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; box-shadow: inset 0 1px 0 #FFFFFF66; }
 .sw input { position: absolute; opacity: 0; pointer-events: none; }
 .sw:has(:checked) { outline: 2.5px solid currentColor; outline-offset: 2.5px; }
-.kbd .pick:has(:focus-visible), .kbd .seg label:has(:focus-visible) { outline: 2px solid var(--red); outline-offset: 2px; }
+.kbd .pick:has(:focus-visible), .kbd .seg label:has(:focus-visible) { outline: 2px solid var(--red-text); outline-offset: 2px; }
 dialog .sect { margin: 0 0 -6px; padding: 0 6px; }
 dialog .group { background: var(--surface); }
 .field { gap: 16px; }
@@ -310,7 +312,7 @@ dialog .group { background: var(--surface); }
 .field input::placeholder, .bigfield::placeholder { color: var(--label2); opacity: .75; }
 .bigfield { width: 100%; border: 0; border-radius: 999px; background: var(--fill); padding: 12px 18px; text-align: center; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.pill.danger { color: var(--red); }
+.pill.danger { color: var(--red-text); }
 .pill.wide { width: 100%; }
 .rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
 .rep-title h1 { min-width: 0; }
@@ -321,7 +323,7 @@ dialog .group { background: var(--surface); }
 dialog.sheet .keypad { position: sticky; bottom: 0; z-index: 2; margin: 0 -16px -20px; padding: 6px 12px calc(12px + env(safe-area-inset-bottom));
   background: var(--sheet); border-top: .5px solid var(--sep); box-shadow: 0 -14px 28px -20px #00000059; }
 .kp-bar { display: flex; justify-content: flex-end; }
-.kp-bar button { color: var(--red); font-size: 16px; font-weight: 600; padding: 6px 10px; }
+.kp-bar button { color: var(--red-text); font-size: 16px; font-weight: 600; padding: 6px 10px; }
 .kp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .kp-keys button { height: 52px; border-radius: 14px; background: var(--key); box-shadow: var(--key-shadow); color: var(--label); font-size: 26px; font-weight: 500;
   font-variant-numeric: tabular-nums; display: grid; place-items: center; touch-action: manipulation; transition: transform .12s, background .12s; }
@@ -334,10 +336,10 @@ dialog.alert .kp-keys button { height: 48px; }
 .arrow svg { width: 16px; height: 16px; stroke-width: 2.4; }
 .rate { font-size: 22px; font-weight: 600; color: var(--label2); letter-spacing: -.01em; }
 /* a row that leads somewhere: a tinted icon tile, a name and a grey line under it */
-.tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red); }
+.tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red-text); }
 .tile svg { width: 20px; height: 20px; }
 .lead { display: grid; }
-.initial { width: 52px; height: 52px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red); font-size: 22px; font-weight: 700; box-shadow: none; }
+.initial { width: 52px; height: 52px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red-text); font-size: 22px; font-weight: 700; box-shadow: none; }
 #toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--label); padding: 10px 18px; border-radius: 999px; font-size: 15px; display: none; z-index: 5; white-space: nowrap; }
 </style>
 </head>

@@ -4,7 +4,7 @@
 import '../public/report.js';  // defines globalThis.monthReport, shared with the web app
 import '../public/categories.js';  // defines globalThis.CATEGORY_LOOK, shared with the web app
 
-const RED = '#C24A44', GREEN = '#35805A', GREY = '#6B6B73';  // the web app's red and green amounts and its secondary text
+const RED = '#B03F3A', GREEN = '#317854', GREY = '#6B6B73';  // the web app's red and green amounts (--expense-text, --income-text) and its secondary text
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const TH_FULL_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const HELP = 'พิมพ์รายการได้เลยจ้ะ เช่น “กาแฟ 60” หรือ “เงินเดือน 30000” จะส่งรูปสลิป เสียง หรือ PDF ก็ได้\n'
