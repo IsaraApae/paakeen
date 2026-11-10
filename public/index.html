@@ -937,14 +937,15 @@ async function addChannel(type) {
 }
 const del = async path => { await api('DELETE', path); load(); };
 async function wipe() { if (await ask('ลบรายการทั้งหมดจริงหรือ? กู้คืนไม่ได้นะ', [], {ok: 'ลบ'})) del('entries'); }
+// the chosen entries go to the server in one request, however many there are
 async function bulkDel() {
-  await Promise.all([...ui.sel].map(id => api('DELETE', 'entries/' + id)));
+  await api('POST', 'entries/bulk', {ids: [...ui.sel], delete: true});
   ui.sel = null; load();
 }
 async function bulkCat() {
   const r = await ask('เปลี่ยนหมวด', [kindField('expense'), catField(S.categories.find(c => c.kind === 'expense')?.id)]);
   if (!r || cat(+r.category_id)?.kind !== r.kind) return;
-  for (const id of ui.sel) await api('PUT', 'entries/' + id, {category_id: +r.category_id, kind: r.kind});
+  await api('POST', 'entries/bulk', {ids: [...ui.sel], category_id: +r.category_id, kind: r.kind});
   ui.sel = null; load();
 }
 const filtered = () => { const {from, to} = range(); return between(from, to).filter(e => (ui.f.kind === 'all' || e.kind === ui.f.kind) && (!ui.f.cat || e.category_id === ui.f.cat)); };

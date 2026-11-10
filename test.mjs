@@ -158,6 +158,19 @@ try {
   assert.equal(await api(t1, 'PUT', `entries/${coffee.id}`, {category_id: other.categories[0].id}), 400);
   assert.equal(await api(t1, 'PUT', `entries/${coffee.id}`, {channel_id: other.channels[0].id}), 400);
   assert.equal(await api(t1, 'POST', 'recurring', {kind: 'expense', amount: 1, freq: 'daily', start: new Date().toISOString().slice(0, 10), category_id: other.categories[0].id}), 400);
+  // several entries in one request (the app's select mode): the user's own only, and only into their own category
+  const [b1, b2] = await Promise.all([1, 2].map(amount => api(t1, 'POST', 'entries', {ts: '2026-01-02 10:00', kind: 'expense', amount, note: 'bulk'})));
+  const theirs = (await api(t2, 'POST', 'entries', {ts: '2026-01-02 10:00', kind: 'expense', amount: 3, note: 'bulk'})).id;
+  for (const bad of [{ids: [], delete: true}, {delete: true}, {ids: [b1.id]}, {ids: ['x'], delete: true}, {ids: b1.id, delete: true}, {ids: [b1.id], category_id: other.categories[0].id}]) {
+    assert.equal(await api(t1, 'POST', 'entries/bulk', bad), 400, JSON.stringify(bad));
+  }
+  assert.deepEqual(await api(t1, 'POST', 'entries/bulk', {ids: [b1.id, b2.id, theirs], category_id: dessert, kind: 'expense'}), {});
+  assert.deepEqual((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'bulk').map(e => e.category_id), [dessert, dessert]);
+  assert.equal((await api(t2, 'GET', 'state')).entries[0].category_id, null);
+  assert.deepEqual(await api(t1, 'POST', 'entries/bulk', {ids: [b1.id, b2.id, theirs], delete: true}), {});
+  assert.equal((await api(t1, 'GET', 'state')).entries.some(e => e.note === 'bulk'), false);
+  assert.deepEqual((await api(t2, 'GET', 'state')).entries.map(e => e.id), [theirs]);
+  await api(t2, 'DELETE', `entries/${theirs}`);
   assert.equal(await api(t1, 'PUT', 'settings', {cycle_day: 32}), 400);
   assert.deepEqual(await api(t1, 'PUT', 'settings', {cycle_day: 31}), {});
   assert.equal((await say('สรุป'))[0].type, 'flex');  // a day-31 cycle still resolves in a 30-day month

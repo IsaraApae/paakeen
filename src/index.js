@@ -836,6 +836,15 @@ async function api(env, u, method, path, body, state) {
   await Promise.all([['category_id', 'categories'], ['channel_id', 'channels']].map(async ([key, owner]) => {
     if (vals[key] != null) need(await q(env, `SELECT 1 FROM ${owner} WHERE id = ? AND user_id = ?`, vals[key], uid).first());
   }));
+  // Several entries at once, for the app's select mode: one request and one statement however many are chosen (the ids
+  // go to the database as one JSON list). `delete: true` removes them; otherwise the columns given are set on each.
+  if (method === 'POST' && table === 'entries' && id === 'bulk') {
+    const gone = body.delete === true;
+    need(Array.isArray(body.ids) && body.ids.length && (gone || keys.length));
+    await q(env, `${gone ? 'DELETE FROM entries' : `UPDATE entries SET ${keys.map(k => k + ' = ?').join(', ')}`} WHERE user_id = ? AND id IN (SELECT value FROM json_each(?))`,
+      ...(gone ? [] : Object.values(vals)), uid, JSON.stringify(body.ids.map(vInt))).run();
+    return {};
+  }
   if (method === 'POST' && id === undefined) {
     need(required.every(k => k in vals));
     if (table === 'channels') need((await q(env, 'SELECT COUNT(*) AS n FROM channels WHERE user_id = ?', uid).first()).n < 10);
