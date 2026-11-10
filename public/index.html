@@ -571,17 +571,18 @@ const stat = (label, n, kind) => `<div class="stat"><i class="arrow ${kind}">${k
 const rateOf = (inc, exp) => inc > 0 ? Math.round((inc - exp) / inc * 1000) / 10 : null;
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
 const seg = (items, cur, js) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" onclick="${js(v)}">${l}</button>`).join('')}</div>`;
-const stepper = (label, prev, next, last) => `<div class="stepper"><button class="ib" onclick="${prev}" aria-label="previous">${I.chevL}</button>
-  <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="next">${I.chevR}</button></div>`;
+const stepper = (label, prev, next, last) => `<div class="stepper"><button class="ib" onclick="${prev}" aria-label="${L('ก่อนหน้า', 'Previous')}">${I.chevL}</button>
+  <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="${L('ถัดไป', 'Next')}">${I.chevR}</button></div>`;
 const pct = (n, sum) => { const p = n / (sum || 1) * 100; return (p && p < .5 ? '<1' : p.toFixed(0)) + '%'; };  // a small spend shows as <1%, not 0%
 const catList = rows => { const sum = rows.reduce((a, r) => a + r[1], 0); return rows.map(r =>
   `<div class="row cat">${dot(r[2], r[3])}<span class="grow">${esc(r[0])}</span><span class="sub num">${pct(r[1], sum)}</span><b class="num">${money(r[1])}</b><i class="bar" style="--c:${r[2]};--p:${r[1] / (sum || 1) * 100}%"></i></div>`).join(''); };
 const row = e => {
   const ch = S.channels.find(c => c.id === e.channel_id);
-  return `<div class="row tap" onclick="tapEntry(${e.id})">
+  // a button, so the keyboard and screen readers reach it; in select mode it also says whether it is chosen
+  return `<button class="row tap" onclick="tapEntry(${e.id})" ${ui.sel ? `aria-pressed="${ui.sel.has(e.id)}"` : ''}>
     ${ui.sel ? `<span class="check ${ui.sel.has(e.id) ? 'on' : ''}">${I.check}</span>` : `${catDot(e.category_id)}`}
-    <div class="grow"><div>${esc(e.note || catName(e))}</div><div class="sub">${e.ts.slice(11)} · ${esc(catName(e))}${ch ? ' · ' + esc(ch.name) : ''} ${e.memory ? I.bulb.replace('<svg', '<svg class="inline-icon"') : ''}</div></div>
-    <div class="num amt ${e.kind}">${signed(e.amount, e.kind)}</div></div>`;
+    <span class="grow lead"><span>${esc(e.note || catName(e))}</span><span class="sub">${e.ts.slice(11)} · ${esc(catName(e))}${ch ? ' · ' + esc(ch.name) : ''} ${e.memory ? I.bulb.replace('<svg', '<svg class="inline-icon"') : ''}</span></span>
+    <span class="num amt ${e.kind}">${signed(e.amount, e.kind)}</span></button>`;
 };
 function days(list) {
   const g = new Map();
@@ -596,9 +597,10 @@ const rangeText = (a, b) => a === b ? fd(a, FULL) : `${fd(a)} – ${fd(b, FULL)}
 
 // ---------- date and time pickers (replace the phone's own) ----------
 const PK = {};  // the open picker's state; its buttons call PK.draw() and PK.done()
-function picker(build) {
+function picker(build, name) {
   const d = $('#pick');
   d.className = 'picker';
+  d.setAttribute('aria-label', name);  // what a screen reader calls the sheet when it opens
   return new Promise(res => {
     PK.draw = () => { d.innerHTML = `<div>${build()}</div>`; if (S.settings.lang === 'en') translate(d); };
     PK.done = v => { d.onclose = null; d.close(); res(v); };
@@ -617,14 +619,14 @@ function pickRange(from, to, single = false) {
       const cls = [d === a || d === b ? 'sel' : '', span && d === a ? 'start' : '', span && d === b ? 'end' : '', span && d > a && d < b ? 'in' : '', d === t ? 'today' : ''];
       return `<button type="button" class="${cls.join(' ')}" onclick="pickDay('${d}')"><span class="n">${i + 1}</span></button>`;
     });
-    return `<div class="cal-head"><button type="button" class="ib" onclick="PK.month = addM(PK.month, -1); PK.draw()" aria-label="previous">${I.chevL}</button>
-        <b>${fd(m, MONTH)}</b><button type="button" class="ib" onclick="PK.month = addM(PK.month, 1); PK.draw()" aria-label="next">${I.chevR}</button></div>
+    return `<div class="cal-head"><button type="button" class="ib" onclick="PK.month = addM(PK.month, -1); PK.draw()" aria-label="${L('ก่อนหน้า', 'Previous')}">${I.chevL}</button>
+        <b>${fd(m, MONTH)}</b><button type="button" class="ib" onclick="PK.month = addM(PK.month, 1); PK.draw()" aria-label="${L('ถัดไป', 'Next')}">${I.chevR}</button></div>
       <div class="cal">${L(['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'], ['S', 'M', 'T', 'W', 'T', 'F', 'S']).map(w => `<span class="wd">${w}</span>`).join('')}
         ${'<span></span>'.repeat(D(m).getUTCDay())}${days.join('')}</div>
       <span class="sub center">${a ? (PK.to ? rangeText(a, b) : `${fd(a, FULL)} – <span>เลือกวันสิ้นสุด</span>`) : ''}</span>
       <div class="two"><button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button>
         <button type="button" class="pill tint" onclick="PK.done({from: PK.from, to: PK.to || PK.from})" ${a ? '' : 'disabled'}>ตกลง</button></div>`;
-  });
+  }, single ? L('เลือกวันที่', 'Pick a date') : L('เลือกช่วงวันที่', 'Pick dates'));
 }
 // first tap picks the start, the next tap the end; tapping before the start starts over
 const pickDay = d => { if (PK.single) Object.assign(PK, {from: d, to: d}); else if (!PK.from || PK.to || d < PK.from) Object.assign(PK, {from: d, to: null}); else PK.to = d; PK.draw(); };
@@ -637,7 +639,7 @@ function pickTime(value, title = 'เวลาเตือน', canOff = true) {
   const done = picker(() => `<b class="center">${title}</b>
     <div class="wheel"><div class="band"></div>${col(24, 'h')}<span class="colon">:</span>${col(60, 'm')}</div>
     <div class="two"><button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button><button type="button" class="pill tint" onclick="PK.done(PK.h + ':' + PK.m)">ตกลง</button></div>
-    ${canOff && value ? `<button type="button" class="link center" onclick="PK.done('')">ปิดการเตือน</button>` : ''}`);
+    ${canOff && value ? `<button type="button" class="link center" onclick="PK.done('')">ปิดการเตือน</button>` : ''}`, tr(title));
   // the sheet is open now: roll each column to its value, and follow it as it scrolls
   document.querySelectorAll('#pick .col').forEach(c => {
     c.scrollTop = +PK[c.dataset.k] * 44;
@@ -669,7 +671,7 @@ function pickOption(title, options, current) {
   return picker(() => `<b class="center">${title}</b>
     <div class="optlist"><div class="group">${options.map(([v, label, sub, right], i) => `<button type="button" class="row tap" onclick="PK.done(PK.opts[${i}][0])">
       <div class="grow"><div>${esc(label)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>${right ? `<span class="value">${esc(right)}</span>` : ''}${v === current ? I.check : ''}</button>`).join('')}</div></div>
-    <button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button>`);
+    <button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button>`, tr(title));
 }
 async function choosePie() {
   const months = [...new Set([today().slice(0, 7), ...S.entries.map(e => e.ts.slice(0, 7))])].sort().reverse();
@@ -754,6 +756,7 @@ function ask(heading, fields, {del, ok = 'บันทึก', hint, cta, sub} =
   }
   flush();
   d.className = sheet ? 'sheet' : fields.some(f => !f.type || f.type === 'text') ? 'alert typing' : 'alert';
+  d.setAttribute('aria-label', tr(heading));  // what a screen reader calls the dialog when it opens
   d.innerHTML = sheet
     ? `<form method="dialog"><div class="sheet-bar"><button class="ib" value="" formnovalidate aria-label="${tr('ยกเลิก')}">${I.x}</button><b tabindex="-1">${heading}</b>
         ${cta ? '' : `<button class="ib tint" value="ok" aria-label="${tr('บันทึก')}">${I.check}</button>`}</div>
