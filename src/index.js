@@ -4,7 +4,7 @@
 import '../public/report.js';  // defines globalThis.monthReport, shared with the web app
 import '../public/categories.js';  // defines globalThis.CATEGORY_LOOK, shared with the web app
 
-const RED = '#C24A44', GREEN = '#35805A', GREY = '#6B6B73';  // the web app's red and green amounts and its secondary text
+const RED = '#B03F3A', GREEN = '#317854', GREY = '#6B6B73';  // the web app's red and green amounts (--expense-text, --income-text) and its secondary text
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const TH_FULL_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const HELP = 'พิมพ์รายการได้เลยจ้ะ เช่น “กาแฟ 60” หรือ “เงินเดือน 30000” จะส่งรูปสลิป เสียง หรือ PDF ก็ได้\n'
@@ -203,18 +203,30 @@ const MENU_TILES = [[60, 60, 1380, 1000, 'add'], [1500, 60, 940, 470, 'sum'], [1
 async function ensureMenu(env, origin, u) {
   const s = settings(u), auth = {Authorization: 'Bearer ' + env.LINE_CHANNEL_ACCESS_TOKEN};
   if (s.menu_v === MENU_VERSION && Date.now() - s.menu_at < 20 * 864e5) return;
-  const app = await appUrl(env, origin, u.id, '', 45);
-  const {richMenuId} = await (await lineApi(env, '/v2/bot/richmenu', {
-    size: {width: 2500, height: 1686}, selected: true, name: 'paakeen', chatBarText: 'เมนูป้าคีน',
-    areas: MENU_TILES.map(([x, y, width, height, does]) => ({bounds: {x, y, width, height}, action:
-      does === 'add' ? {type: 'uri', uri: app + '&add=1'}
-      : does.startsWith('tab:') ? {type: 'uri', uri: app + '&tab=' + does.slice(4)}
-      : {type: 'postback', data: does, displayText: does === 'sum' ? 'สรุป' : 'วิธีใช้'}})),
-  })).json();
-  const image = await (await env.ASSETS.fetch(origin + '/menu.jpg')).arrayBuffer();
-  await call(`${env.LINE_DATA_API || 'https://api-data.line.me'}/v2/bot/richmenu/${richMenuId}/content`, {method: 'POST', headers: {...auth, 'Content-Type': 'image/jpeg'}, body: image});
-  await lineApi(env, `/v2/bot/user/${u.id}/richmenu/${richMenuId}`, {});
-  if (s.menu_id) await call(`${env.LINE_API || 'https://api.line.me'}/v2/bot/richmenu/${s.menu_id}`, {method: 'DELETE', headers: auth}).catch(console.error);
+  // LINE keeps at most 1000 menus for a bot, and the scheduled job comes back every 5 minutes. So a menu that could not
+  // be finished (its picture, or giving it to a user who has since left LINE) is taken down again, and the next try
+  // waits an hour: otherwise one user it keeps failing for would use up every menu within days, for everyone.
+  if (Date.now() - s.menu_try < 36e5) return;
+  const drop = id => call(`${env.LINE_API || 'https://api.line.me'}/v2/bot/richmenu/${id}`, {method: 'DELETE', headers: auth}).catch(console.error);
+  let richMenuId;
+  try {
+    const app = await appUrl(env, origin, u.id, '', 45);
+    ({richMenuId} = await (await lineApi(env, '/v2/bot/richmenu', {
+      size: {width: 2500, height: 1686}, selected: true, name: 'paakeen', chatBarText: 'เมนูป้าคีน',
+      areas: MENU_TILES.map(([x, y, width, height, does]) => ({bounds: {x, y, width, height}, action:
+        does === 'add' ? {type: 'uri', uri: app + '&add=1'}
+        : does.startsWith('tab:') ? {type: 'uri', uri: app + '&tab=' + does.slice(4)}
+        : {type: 'postback', data: does, displayText: does === 'sum' ? 'สรุป' : 'วิธีใช้'}})),
+    })).json());
+    const image = await (await env.ASSETS.fetch(origin + '/menu.jpg')).arrayBuffer();
+    await call(`${env.LINE_DATA_API || 'https://api-data.line.me'}/v2/bot/richmenu/${richMenuId}/content`, {method: 'POST', headers: {...auth, 'Content-Type': 'image/jpeg'}, body: image});
+    await lineApi(env, `/v2/bot/user/${u.id}/richmenu/${richMenuId}`, {});
+  } catch (e) {
+    if (richMenuId) await drop(richMenuId);
+    await saveSettings(env, u, {menu_try: Date.now()}).catch(console.error);
+    throw e;
+  }
+  if (s.menu_id) await drop(s.menu_id);
   await saveSettings(env, u, {menu_at: Date.now(), menu_id: richMenuId, menu_v: MENU_VERSION, menu_origin: origin});
 }
 
@@ -751,7 +763,8 @@ async function remind(env) {
       await saveSettings(env, u, {last_report: c.from});
       if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
     }
-    if (!s.remind || now.slice(11) < s.remind || s.last_remind === today) continue;
+    // this job runs on the 5-minute marks and the day's last is 23:55: a reminder set for after it would never come round
+    if (!s.remind || now.slice(11) < (s.remind > '23:55' ? '23:55' : s.remind) || s.last_remind === today) continue;
     await writeSettings(env, u.id, {last_remind: today});
     if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
@@ -823,6 +836,15 @@ async function api(env, u, method, path, body, state) {
   await Promise.all([['category_id', 'categories'], ['channel_id', 'channels']].map(async ([key, owner]) => {
     if (vals[key] != null) need(await q(env, `SELECT 1 FROM ${owner} WHERE id = ? AND user_id = ?`, vals[key], uid).first());
   }));
+  // Several entries at once, for the app's select mode: one request and one statement however many are chosen (the ids
+  // go to the database as one JSON list). `delete: true` removes them; otherwise the columns given are set on each.
+  if (method === 'POST' && table === 'entries' && id === 'bulk') {
+    const gone = body.delete === true;
+    need(Array.isArray(body.ids) && body.ids.length && (gone || keys.length));
+    await q(env, `${gone ? 'DELETE FROM entries' : `UPDATE entries SET ${keys.map(k => k + ' = ?').join(', ')}`} WHERE user_id = ? AND id IN (SELECT value FROM json_each(?))`,
+      ...(gone ? [] : Object.values(vals)), uid, JSON.stringify(body.ids.map(vInt))).run();
+    return {};
+  }
   if (method === 'POST' && id === undefined) {
     need(required.every(k => k in vals));
     if (table === 'channels') need((await q(env, 'SELECT COUNT(*) AS n FROM channels WHERE user_id = ?', uid).first()).n < 10);

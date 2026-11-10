@@ -77,6 +77,7 @@ Opened from the chat menu with a personal signed link. No password needed. Amoun
 - `public/categories.js`: the category colours and the built-in categories' emoji, shared the same way, so the LINE cards and the web app always match.
 - `public/chars/*.png`: the hamsters for the LINE cards, one per mood (© shiba, used with permission). After replacing one, bump `CHAR_VERSION` in `src/index.js`, because LINE caches images by address.
 - **Speed:** the tables are indexed per user, so a query reads only that user's rows, which also keeps D1's free daily reads for real use. Reads that don't depend on each other go to D1 together rather than one after another, and the web app asks for its data from the top of the page, so it doesn't wait for the rest of the page first. It draws the page once when it opens, and when Chart.js arrives it draws only the charts, on canvases already sized for them.
+- **Logs:** `wrangler.toml` turns on Workers Logs, so errors and each reply's timings can be read in the Cloudflare dashboard for a few days afterwards, not only while `wrangler tail` is running.
 - `make-menu.py`: draws the chat menu as `menu-source.svg` on any system, and on macOS also renders it to `public/menu.jpg`; elsewhere, render the SVG with a headless browser (see the script's note). Its tile boxes must match `MENU_TILES` in `src/index.js`, and `MENU_VERSION` there is bumped with every new menu.
 - `test.mjs`: an end-to-end check that runs the worker locally against a mock LINE and Gemini (`npm test`).
 - `seed.mjs`: fills a local `wrangler dev` with a test user and a few months of sample entries, and prints a link to open the web app as that user (`npm run seed`).
@@ -111,6 +112,10 @@ Needs Node.js 20 or newer.
 2. `npm install`, then `npx wrangler d1 create paakeen`, put the database id in `wrangler.toml`, and set `APP_ORIGIN` to your worker's URL. Change the link-preview image's address (`og:image`, near the top of `public/index.html`) to it as well.
 3. `npx wrangler secret put LINE_CHANNEL_SECRET`, then the same for `LINE_CHANNEL_ACCESS_TOKEN` and `GEMINI_API_KEY`.
 4. `npm run deploy`, then set the LINE webhook URL to `https://<your worker>/webhook`.
+
+## Security
+
+Found a way into someone else's entries, or around the signed link? Please report it privately: see [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -31,14 +31,17 @@ let token = hash.get('t');
 try { token ? localStorage.setItem('t', token) : token = localStorage.getItem('t'); } catch {}
 let early = token && fetch('/api/state', {headers: {Authorization: 'Bearer ' + token}});
 early && early.catch(() => {});  // no connection: api() reports it when load() asks for this answer
+// Chart.js is asked for at the same moment, and only with a link: the page a visitor without one sees draws no chart.
+// A script added this way loads alongside the page and data. integrity: the browser refuses the file if the CDN ever
+// serves anything else (the page holds the login link and every entry); take a new version's hash from cdnjs.com
+// along with its address
+const chartjs = token && document.head.appendChild(Object.assign(document.createElement('script'), {
+  src: 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js', crossOrigin: 'anonymous',
+  integrity: 'sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==',
+}));
 </script>
 <link rel="preload" href="/categories.js" as="script">
 <link rel="preload" href="/report.js" as="script">  <!-- its tag is at the end of this long page, found only once nearly all of it is in -->
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>  <!-- crossorigin: the scripts below load in that mode, for their integrity check -->
-<!-- async: the page and data load alongside it. integrity: the browser refuses the file if the CDN ever serves anything else
-     (the page holds the login link and every entry); take a new version's hash from cdnjs.com along with its address -->
-<script async id="chartjs" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.6.1/chart.umd.min.js"
-  integrity="sha512-vMRyUfXe50uUhhDC+fk6UYBA/1VPj+I7Jn+wK0A3+wSVeUgT9OCz/xoF2M8KFvrmUOlb4Anv0FQUw8NafuzYPw==" crossorigin="anonymous"></script>
 <style>
 /* Solid white cards with soft shadows on a plain background; the red gradient is kept for the + button */
 :root {
@@ -47,7 +50,9 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
   --label: #17171A; --label2: #6B6B73; --sep: #3C3C4326;
   /* the same red and green as dark mode, so both themes match */
   --red: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --switch: #34C759;
-  --expense-text: #C24A44; --income-text: #35805A;  /* amounts stay darker on the light background so they read clearly */
+  /* text in red or green is darker on the light background, so it reads clearly: at least 4.5:1 on the cards, the page,
+     the grey boxes and the red tint. --red itself stays for buttons, fills and rings */
+  --red-text: #B03F3A; --expense-text: #B03F3A; --income-text: #317854;
   --glass: #FFFFFF; --glass-strong: #FFFFFF; --glass-edge: #0000000A;
   --glass-shine: 0 0 #0000;
   --glass-shadow: 0 1px 2px #0000000A, 0 12px 30px -16px #00000030;
@@ -60,7 +65,7 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
   :root:not([data-theme=light]) {
     --surface: #1C1C1F; --fill: #7676803D; --track: #78788052;
     --label: #F2F2F7; --label2: #A1A1A8; --sep: #54545899;
-    --red: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
+    --red: #FF6961; --red-text: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
     --glass: #232326; --glass-strong: #3A3A3E; --glass-edge: #FFFFFF14;
     --glass-shine: 0 0 #0000;
     --glass-shadow: 0 10px 28px -14px #000000B3;
@@ -72,7 +77,7 @@ early && early.catch(() => {});  // no connection: api() reports it when load() 
 :root[data-theme=dark] {
   --surface: #1C1C1F; --fill: #7676803D; --track: #78788052;
   --label: #F2F2F7; --label2: #A1A1A8; --sep: #54545899;
-  --red: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
+  --red: #FF6961; --red-text: #FF6961; --red-tint: #FF696126; --expense: #F0958E; --income: #8FD3A0; --expense-text: #F0958E; --income-text: #8FD3A0;
   --glass: #232326; --glass-strong: #3A3A3E; --glass-edge: #FFFFFF14;
   --glass-shine: 0 0 #0000;
   --glass-shadow: 0 10px 28px -14px #000000B3;
@@ -115,7 +120,7 @@ button, select, input { font: inherit; color: inherit; margin: 0; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 button:disabled { opacity: .3; }
 :focus, :focus-visible { outline: none; }
-.kbd :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }  /* only once Tab has been used */
+.kbd :focus-visible { outline: 2px solid var(--red-text); outline-offset: 2px; }  /* only once Tab has been used */
 dialog :is(b, input):focus { outline: none; }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 /* Chart.js often arrives after the numbers; until then each chart's canvas already has the size it will be drawn at
@@ -135,7 +140,7 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .title { padding: 4px 4px 0; }
 .acts { position: fixed; z-index: 3; top: calc(8px + env(safe-area-inset-top)); right: max(16px, calc(50vw - 264px)); display: flex; align-items: center; gap: 8px; }
 .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--fill); border: .5px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
-.link { color: var(--red); font-size: 17px; padding: 6px 4px; }
+.link { color: var(--red-text); font-size: 17px; padding: 6px 4px; }
 .link:active, .ib:active, .pill:active { opacity: .55; }
 .ib { width: 44px; height: 44px; border-radius: 50%; color: var(--label); display: grid; place-items: center; flex: none; transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
 .ib:active, .pill:active { transform: scale(.94); }
@@ -143,17 +148,17 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .ib.small { width: 32px; height: 32px; color: var(--label2); box-shadow: var(--glass-shine); background: var(--fill); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .ib.small svg { width: 15px; height: 15px; }
 .pill { height: 44px; padding: 0 16px; border-radius: 999px; font-weight: 500; transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
-.pill.on { color: var(--red); font-weight: 600; }
+.pill.on { color: var(--red-text); font-weight: 600; }
 .cluster { display: flex; border-radius: 999px; padding: 0 4px; }
 .cluster button { width: 42px; height: 44px; display: grid; place-items: center; }
 .cluster button:active { opacity: .5; }
-.cluster .accent { color: var(--red); }
+.cluster .accent { color: var(--red-text); }
 
 /* content layer: opaque grouped lists with the larger concentric radius */
 .sect { display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 700; padding: 0 4px; margin: 14px 0 -4px; min-height: 22px; }
 .sect span + span { font-size: 13px; font-weight: 400; color: var(--label2); }
 .sect b { font-weight: 600; }
-.sect .link { font-size: 13px; font-weight: 500; padding: 0; }
+.sect .link { font-size: 13px; font-weight: 500; padding: 8px 6px; margin: -8px -6px; }  /* a bigger place to tap, drawn where it was */
 .foot { font-size: 13px; color: var(--label2); padding: 0 20px; margin: -8px 0 0; }
 .group { background: var(--surface); border-radius: 24px; overflow: hidden; box-shadow: var(--glass-shadow); }
 .group > * { position: relative; }
@@ -207,8 +212,8 @@ nav, .ib, .pill, .cluster, .selbar, .seg, .chip, .pick, #toast {
 .chips { display: flex; gap: 8px; overflow-x: auto; margin: -8px -16px; padding: 8px 16px; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; border-radius: 999px; padding: 8px 16px; font-size: 15px; box-shadow: var(--glass-shine), 0 2px 8px -2px #0000001A; }
-.chip.on { background: var(--red-tint); color: var(--red); font-weight: 600; }
-.menu { appearance: none; -webkit-appearance: none; border: 0; background: none; color: var(--red); padding: 0; text-align: right; text-align-last: right; max-width: 62%; min-width: 0; }
+.chip.on { background: var(--red-tint); color: var(--red-text); font-weight: 600; }
+.menu { appearance: none; -webkit-appearance: none; border: 0; background: none; color: var(--red-text); padding: 0; text-align: right; text-align-last: right; max-width: 62%; min-width: 0; }
 input.menu::-webkit-date-and-time-value { text-align: right; }
 .switch { appearance: none; -webkit-appearance: none; width: 64px; height: 28px; border-radius: 999px; background: var(--track); position: relative; flex: none; transition: background .25s; cursor: pointer; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 38px; height: 24px; border-radius: 999px; background: #fff; box-shadow: inset 0 1px 0 #FFFFFF, 0 3px 8px #00000026, 0 1px 1px #00000029; transition: transform .3s cubic-bezier(.16, 1, .3, 1); }
@@ -227,7 +232,7 @@ nav { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, 1fr
 .selbar button:active { background: var(--fill); }
 .selecting .dock { display: none; }
 nav button { padding: 6px 0 5px; border-radius: 999px; color: var(--label); font-size: 11px; font-weight: 500; display: grid; justify-items: center; gap: 1px; transition: background .25s; }
-nav button.on { color: var(--red); font-weight: 600; }
+nav button.on { color: var(--red-text); font-weight: 600; }
 @media (max-width: 359px) { nav button { font-size: 10px; } }  /* 320px phones: วิเคราะห์ and หมวดหมู่ ran into each other at 11px */
 nav svg { width: 24px; height: 24px; stroke-width: 1.8; }
 
@@ -282,7 +287,7 @@ dialog.picker > div { display: grid; gap: 12px; }
 .wheel .colon { position: relative; font-size: 24px; font-weight: 600; padding-bottom: 3px; }
 .center { text-align: center; }
 .optlist { max-height: 58dvh; overflow-y: auto; }
-.optlist .row svg { color: var(--red); width: 20px; height: 20px; }
+.optlist .row svg { color: var(--red-text); width: 20px; height: 20px; }
 .value { color: var(--label2); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
 form[data-kind=income] .only-expense,
 form[data-kind=income] .k-expense, form[data-kind=expense] .k-income { display: none; }
@@ -291,7 +296,7 @@ form[data-kind=income] .k-expense, form[data-kind=expense] .k-income { display: 
 .seg label:has(:checked) { background: var(--glass-strong); font-weight: 600; box-shadow: 0 2px 8px -2px #00000026; }
 .picks { display: flex; flex-wrap: wrap; gap: 8px; }
 .pick { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px; font-size: 15px; cursor: pointer; box-shadow: var(--glass-shine), 0 2px 8px -2px #0000001A; transition: background .2s, color .2s; }
-.pick:has(:checked) { background: var(--red-tint); color: var(--red); border-color: transparent; font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--red); }
+.pick:has(:checked) { background: var(--red-tint); color: var(--red-text); border-color: transparent; font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--red); }
 .pick svg { width: 15px; height: 15px; }
 .grip { width: 44px; height: 44px; margin-right: -12px; display: grid; place-items: center; color: var(--label2); touch-action: none; cursor: grab; }
 .dragging { z-index: 1; background: var(--glass-strong); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-radius: 16px; box-shadow: 0 10px 28px #00000033; }
@@ -300,7 +305,7 @@ form[data-kind=income] .k-expense, form[data-kind=expense] .k-income { display: 
 .sw { position: relative; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; box-shadow: inset 0 1px 0 #FFFFFF66; }
 .sw input { position: absolute; opacity: 0; pointer-events: none; }
 .sw:has(:checked) { outline: 2.5px solid currentColor; outline-offset: 2.5px; }
-.kbd .pick:has(:focus-visible), .kbd .seg label:has(:focus-visible) { outline: 2px solid var(--red); outline-offset: 2px; }
+.kbd .pick:has(:focus-visible), .kbd .seg label:has(:focus-visible) { outline: 2px solid var(--red-text); outline-offset: 2px; }
 dialog .sect { margin: 0 0 -6px; padding: 0 6px; }
 dialog .group { background: var(--surface); }
 .field { gap: 16px; }
@@ -310,7 +315,7 @@ dialog .group { background: var(--surface); }
 .field input::placeholder, .bigfield::placeholder { color: var(--label2); opacity: .75; }
 .bigfield { width: 100%; border: 0; border-radius: 999px; background: var(--fill); padding: 12px 18px; text-align: center; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.pill.danger { color: var(--red); }
+.pill.danger { color: var(--red-text); }
 .pill.wide { width: 100%; }
 .rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
 .rep-title h1 { min-width: 0; }
@@ -321,7 +326,7 @@ dialog .group { background: var(--surface); }
 dialog.sheet .keypad { position: sticky; bottom: 0; z-index: 2; margin: 0 -16px -20px; padding: 6px 12px calc(12px + env(safe-area-inset-bottom));
   background: var(--sheet); border-top: .5px solid var(--sep); box-shadow: 0 -14px 28px -20px #00000059; }
 .kp-bar { display: flex; justify-content: flex-end; }
-.kp-bar button { color: var(--red); font-size: 16px; font-weight: 600; padding: 6px 10px; }
+.kp-bar button { color: var(--red-text); font-size: 16px; font-weight: 600; padding: 6px 10px; }
 .kp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .kp-keys button { height: 52px; border-radius: 14px; background: var(--key); box-shadow: var(--key-shadow); color: var(--label); font-size: 26px; font-weight: 500;
   font-variant-numeric: tabular-nums; display: grid; place-items: center; touch-action: manipulation; transition: transform .12s, background .12s; }
@@ -334,10 +339,10 @@ dialog.alert .kp-keys button { height: 48px; }
 .arrow svg { width: 16px; height: 16px; stroke-width: 2.4; }
 .rate { font-size: 22px; font-weight: 600; color: var(--label2); letter-spacing: -.01em; }
 /* a row that leads somewhere: a tinted icon tile, a name and a grey line under it */
-.tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red); }
+.tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red-text); }
 .tile svg { width: 20px; height: 20px; }
 .lead { display: grid; }
-.initial { width: 52px; height: 52px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red); font-size: 22px; font-weight: 700; box-shadow: none; }
+.initial { width: 52px; height: 52px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red-text); font-size: 22px; font-weight: 700; box-shadow: none; }
 #toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--label); padding: 10px 18px; border-radius: 999px; font-size: 15px; display: none; z-index: 5; white-space: nowrap; }
 </style>
 </head>
@@ -569,17 +574,18 @@ const stat = (label, n, kind) => `<div class="stat"><i class="arrow ${kind}">${k
 const rateOf = (inc, exp) => inc > 0 ? Math.round((inc - exp) / inc * 1000) / 10 : null;
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
 const seg = (items, cur, js) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" onclick="${js(v)}">${l}</button>`).join('')}</div>`;
-const stepper = (label, prev, next, last) => `<div class="stepper"><button class="ib" onclick="${prev}" aria-label="previous">${I.chevL}</button>
-  <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="next">${I.chevR}</button></div>`;
+const stepper = (label, prev, next, last) => `<div class="stepper"><button class="ib" onclick="${prev}" aria-label="${L('ก่อนหน้า', 'Previous')}">${I.chevL}</button>
+  <b>${label}</b><button class="ib" onclick="${next}" ${last ? 'disabled' : ''} aria-label="${L('ถัดไป', 'Next')}">${I.chevR}</button></div>`;
 const pct = (n, sum) => { const p = n / (sum || 1) * 100; return (p && p < .5 ? '<1' : p.toFixed(0)) + '%'; };  // a small spend shows as <1%, not 0%
 const catList = rows => { const sum = rows.reduce((a, r) => a + r[1], 0); return rows.map(r =>
   `<div class="row cat">${dot(r[2], r[3])}<span class="grow">${esc(r[0])}</span><span class="sub num">${pct(r[1], sum)}</span><b class="num">${money(r[1])}</b><i class="bar" style="--c:${r[2]};--p:${r[1] / (sum || 1) * 100}%"></i></div>`).join(''); };
 const row = e => {
   const ch = S.channels.find(c => c.id === e.channel_id);
-  return `<div class="row tap" onclick="tapEntry(${e.id})">
+  // a button, so the keyboard and screen readers reach it; in select mode it also says whether it is chosen
+  return `<button class="row tap" onclick="tapEntry(${e.id})" ${ui.sel ? `aria-pressed="${ui.sel.has(e.id)}"` : ''}>
     ${ui.sel ? `<span class="check ${ui.sel.has(e.id) ? 'on' : ''}">${I.check}</span>` : `${catDot(e.category_id)}`}
-    <div class="grow"><div>${esc(e.note || catName(e))}</div><div class="sub">${e.ts.slice(11)} · ${esc(catName(e))}${ch ? ' · ' + esc(ch.name) : ''} ${e.memory ? I.bulb.replace('<svg', '<svg class="inline-icon"') : ''}</div></div>
-    <div class="num amt ${e.kind}">${signed(e.amount, e.kind)}</div></div>`;
+    <span class="grow lead"><span>${esc(e.note || catName(e))}</span><span class="sub">${e.ts.slice(11)} · ${esc(catName(e))}${ch ? ' · ' + esc(ch.name) : ''} ${e.memory ? I.bulb.replace('<svg', '<svg class="inline-icon"') : ''}</span></span>
+    <span class="num amt ${e.kind}">${signed(e.amount, e.kind)}</span></button>`;
 };
 function days(list) {
   const g = new Map();
@@ -594,9 +600,10 @@ const rangeText = (a, b) => a === b ? fd(a, FULL) : `${fd(a)} – ${fd(b, FULL)}
 
 // ---------- date and time pickers (replace the phone's own) ----------
 const PK = {};  // the open picker's state; its buttons call PK.draw() and PK.done()
-function picker(build) {
+function picker(build, name) {
   const d = $('#pick');
   d.className = 'picker';
+  d.setAttribute('aria-label', name);  // what a screen reader calls the sheet when it opens
   return new Promise(res => {
     PK.draw = () => { d.innerHTML = `<div>${build()}</div>`; if (S.settings.lang === 'en') translate(d); };
     PK.done = v => { d.onclose = null; d.close(); res(v); };
@@ -615,14 +622,14 @@ function pickRange(from, to, single = false) {
       const cls = [d === a || d === b ? 'sel' : '', span && d === a ? 'start' : '', span && d === b ? 'end' : '', span && d > a && d < b ? 'in' : '', d === t ? 'today' : ''];
       return `<button type="button" class="${cls.join(' ')}" onclick="pickDay('${d}')"><span class="n">${i + 1}</span></button>`;
     });
-    return `<div class="cal-head"><button type="button" class="ib" onclick="PK.month = addM(PK.month, -1); PK.draw()" aria-label="previous">${I.chevL}</button>
-        <b>${fd(m, MONTH)}</b><button type="button" class="ib" onclick="PK.month = addM(PK.month, 1); PK.draw()" aria-label="next">${I.chevR}</button></div>
+    return `<div class="cal-head"><button type="button" class="ib" onclick="PK.month = addM(PK.month, -1); PK.draw()" aria-label="${L('ก่อนหน้า', 'Previous')}">${I.chevL}</button>
+        <b>${fd(m, MONTH)}</b><button type="button" class="ib" onclick="PK.month = addM(PK.month, 1); PK.draw()" aria-label="${L('ถัดไป', 'Next')}">${I.chevR}</button></div>
       <div class="cal">${L(['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'], ['S', 'M', 'T', 'W', 'T', 'F', 'S']).map(w => `<span class="wd">${w}</span>`).join('')}
         ${'<span></span>'.repeat(D(m).getUTCDay())}${days.join('')}</div>
       <span class="sub center">${a ? (PK.to ? rangeText(a, b) : `${fd(a, FULL)} – <span>เลือกวันสิ้นสุด</span>`) : ''}</span>
       <div class="two"><button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button>
         <button type="button" class="pill tint" onclick="PK.done({from: PK.from, to: PK.to || PK.from})" ${a ? '' : 'disabled'}>ตกลง</button></div>`;
-  });
+  }, single ? L('เลือกวันที่', 'Pick a date') : L('เลือกช่วงวันที่', 'Pick dates'));
 }
 // first tap picks the start, the next tap the end; tapping before the start starts over
 const pickDay = d => { if (PK.single) Object.assign(PK, {from: d, to: d}); else if (!PK.from || PK.to || d < PK.from) Object.assign(PK, {from: d, to: null}); else PK.to = d; PK.draw(); };
@@ -635,7 +642,7 @@ function pickTime(value, title = 'เวลาเตือน', canOff = true) {
   const done = picker(() => `<b class="center">${title}</b>
     <div class="wheel"><div class="band"></div>${col(24, 'h')}<span class="colon">:</span>${col(60, 'm')}</div>
     <div class="two"><button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button><button type="button" class="pill tint" onclick="PK.done(PK.h + ':' + PK.m)">ตกลง</button></div>
-    ${canOff && value ? `<button type="button" class="link center" onclick="PK.done('')">ปิดการเตือน</button>` : ''}`);
+    ${canOff && value ? `<button type="button" class="link center" onclick="PK.done('')">ปิดการเตือน</button>` : ''}`, tr(title));
   // the sheet is open now: roll each column to its value, and follow it as it scrolls
   document.querySelectorAll('#pick .col').forEach(c => {
     c.scrollTop = +PK[c.dataset.k] * 44;
@@ -667,7 +674,7 @@ function pickOption(title, options, current) {
   return picker(() => `<b class="center">${title}</b>
     <div class="optlist"><div class="group">${options.map(([v, label, sub, right], i) => `<button type="button" class="row tap" onclick="PK.done(PK.opts[${i}][0])">
       <div class="grow"><div>${esc(label)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>${right ? `<span class="value">${esc(right)}</span>` : ''}${v === current ? I.check : ''}</button>`).join('')}</div></div>
-    <button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button>`);
+    <button type="button" class="pill" onclick="PK.done(null)">ยกเลิก</button>`, tr(title));
 }
 async function choosePie() {
   const months = [...new Set([today().slice(0, 7), ...S.entries.map(e => e.ts.slice(0, 7))])].sort().reverse();
@@ -752,6 +759,7 @@ function ask(heading, fields, {del, ok = 'บันทึก', hint, cta, sub} =
   }
   flush();
   d.className = sheet ? 'sheet' : fields.some(f => !f.type || f.type === 'text') ? 'alert typing' : 'alert';
+  d.setAttribute('aria-label', tr(heading));  // what a screen reader calls the dialog when it opens
   d.innerHTML = sheet
     ? `<form method="dialog"><div class="sheet-bar"><button class="ib" value="" formnovalidate aria-label="${tr('ยกเลิก')}">${I.x}</button><b tabindex="-1">${heading}</b>
         ${cta ? '' : `<button class="ib tint" value="ok" aria-label="${tr('บันทึก')}">${I.check}</button>`}</div>
@@ -812,7 +820,10 @@ async function api(method, path, body) {
   const r = req && await req.catch(() => null);  // null: no connection
   if (!token || r?.status === 401) {
     try { localStorage.removeItem(CACHE); } catch {}
-    $('#main').innerHTML = '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>';
+    // with no link at all (someone who came from the README, say) nothing has expired: say what this page is instead
+    $('#main').innerHTML = token
+      ? '<p class="empty">ลิงก์หมดอายุแล้วจ้ะ ส่งข้อความอะไรก็ได้หาป้าคีนใน LINE แล้วแตะเมนูอีกครั้ง<br><br>Link expired. Send the bot any message in LINE, then tap its menu again.</p>'
+      : '<p class="empty">ป้าคีนช่วยจดรายรับรายจ่ายจากแชต LINE จ้ะ หน้านี้เปิดด้วยลิงก์ส่วนตัวของแต่ละคน: แตะเมนูในแชตของป้าคีน หรือพิมพ์ “แอป” ส่งหาป้าคีนใน LINE<br><br>ป้าคีน records income and expenses from a LINE chat. This page opens with your own personal link: tap the menu in the bot’s chat, or send it “แอป”.</p>';
     throw new Error('auth');
   }
   if (!r?.ok) {
@@ -840,7 +851,7 @@ const retry = () => { $('#main').innerHTML = `<p class="empty">กำลัง�
 const chartDefaults = () => { Object.assign(Chart.defaults, {color: css('--label2'), borderColor: css('--sep'), animation: false}); Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; };
 // once the library is in, the charts the page is waiting for are drawn on the canvases already there (sized for them),
 // instead of drawing the whole page again
-document.getElementById('chartjs').addEventListener('load', () => { if (!waiting.length) return; chartDefaults(); waiting.forEach(f => f()); waiting = []; });
+chartjs && chartjs.addEventListener('load', () => { if (!waiting.length) return; chartDefaults(); waiting.forEach(f => f()); waiting = []; });
 function render() {
   applyTheme(S.settings.theme);
   document.documentElement.lang = S.settings.lang === 'en' ? 'en' : 'th';  // so screen readers pick the right voice
@@ -855,7 +866,7 @@ function render() {
   if (S.settings.lang === 'en') translate(document.body);
   after.forEach(f => f());
 }
-const go = t => { tab = t; ui.sel = null; ui.sort = false; render(); scrollTo(0, 0); };
+const go = t => { if (!S) return; tab = t; ui.sel = null; ui.sort = false; render(); scrollTo(0, 0); };  // no data, no tabs: that page keeps its message
 const U = o => { Object.assign(ui, o); render(); };
 const F = o => { Object.assign(ui.f, o); render(); };
 // a language change reloads (every label is rebuilt); the open tab is kept so it doesn't jump back to สรุป
@@ -937,14 +948,15 @@ async function addChannel(type) {
 }
 const del = async path => { await api('DELETE', path); load(); };
 async function wipe() { if (await ask('ลบรายการทั้งหมดจริงหรือ? กู้คืนไม่ได้นะ', [], {ok: 'ลบ'})) del('entries'); }
+// the chosen entries go to the server in one request, however many there are
 async function bulkDel() {
-  await Promise.all([...ui.sel].map(id => api('DELETE', 'entries/' + id)));
+  await api('POST', 'entries/bulk', {ids: [...ui.sel], delete: true});
   ui.sel = null; load();
 }
 async function bulkCat() {
   const r = await ask('เปลี่ยนหมวด', [kindField('expense'), catField(S.categories.find(c => c.kind === 'expense')?.id)]);
   if (!r || cat(+r.category_id)?.kind !== r.kind) return;
-  for (const id of ui.sel) await api('PUT', 'entries/' + id, {category_id: +r.category_id, kind: r.kind});
+  await api('POST', 'entries/bulk', {ids: [...ui.sel], category_id: +r.category_id, kind: r.kind});
   ui.sel = null; load();
 }
 const filtered = () => { const {from, to} = range(); return between(from, to).filter(e => (ui.f.kind === 'all' || e.kind === ui.f.kind) && (!ui.f.cat || e.category_id === ui.f.cat)); };
