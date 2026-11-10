@@ -17,7 +17,7 @@ catch { throw new Error('wrangler is not installed: run npm install first'); }
 const MOCK = 8798, PORT = 8799, base = `http://127.0.0.1:${PORT}`, mockUrl = `http://127.0.0.1:${MOCK}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let entries = [], geminiParts, geminiModel, geminiThinking, loadings = 0;
-const replies = [], pushes = [], menus = [];
+const replies = [], pushes = [], menus = [], dropped = [];
 
 const mock = createServer(async (req, res) => {
   let body = '';
@@ -25,6 +25,8 @@ const mock = createServer(async (req, res) => {
   const json = o => res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify(o));
   if (req.url.includes('/profile/')) return json({displayName: 'Dev'});
   if (req.url.endsWith('/richmenu')) { menus.push(JSON.parse(body)); return json({richMenuId: 'rm' + menus.length}); }
+  if (req.method === 'DELETE' && req.url.includes('/richmenu/')) { dropped.push(req.url.split('/').pop()); return json({}); }
+  if (req.url.includes('/user/ugone/richmenu/')) return res.writeHead(404).end('no such user');  // this user can't be given a menu
   if (req.url.includes('/richmenu/')) return json({});
   if (req.url.endsWith('/reply')) { replies.push(JSON.parse(body).messages); return json({}); }
   if (req.url.endsWith('/loading/start')) { loadings++; return json({}); }
@@ -259,6 +261,16 @@ try {
   for (const c of JSON.stringify(summary).matchAll(/"(?:color|backgroundColor)":"([^"]*)"/g)) assert.match(c[1], /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);  // LINE refuses anything else
   entries = [];
   assert.match((await say('สวัสดี'))[0].text, /พิมพ์รายการได้เลย/);
+
+  // a menu that can't be given to its user is taken down again, and not made again on the very next message
+  const made = menus.length + 1;
+  await say('สวัสดี', 'ugone');
+  for (let i = 0; i < 50 && !dropped.includes('rm' + made); i++) await sleep(100);
+  assert.deepEqual(dropped, ['rm' + made]);  // and nobody's working menu was touched
+  await sleep(300);
+  await say('สวัสดี', 'ugone');
+  await sleep(500);
+  assert.equal(menus.length, made);
 
   // daily reminder: fires once for a user with nothing logged today
   await api(t2, 'PUT', 'settings', {remind: '00:00'});

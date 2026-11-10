@@ -203,18 +203,30 @@ const MENU_TILES = [[60, 60, 1380, 1000, 'add'], [1500, 60, 940, 470, 'sum'], [1
 async function ensureMenu(env, origin, u) {
   const s = settings(u), auth = {Authorization: 'Bearer ' + env.LINE_CHANNEL_ACCESS_TOKEN};
   if (s.menu_v === MENU_VERSION && Date.now() - s.menu_at < 20 * 864e5) return;
-  const app = await appUrl(env, origin, u.id, '', 45);
-  const {richMenuId} = await (await lineApi(env, '/v2/bot/richmenu', {
-    size: {width: 2500, height: 1686}, selected: true, name: 'paakeen', chatBarText: 'เมนูป้าคีน',
-    areas: MENU_TILES.map(([x, y, width, height, does]) => ({bounds: {x, y, width, height}, action:
-      does === 'add' ? {type: 'uri', uri: app + '&add=1'}
-      : does.startsWith('tab:') ? {type: 'uri', uri: app + '&tab=' + does.slice(4)}
-      : {type: 'postback', data: does, displayText: does === 'sum' ? 'สรุป' : 'วิธีใช้'}})),
-  })).json();
-  const image = await (await env.ASSETS.fetch(origin + '/menu.jpg')).arrayBuffer();
-  await call(`${env.LINE_DATA_API || 'https://api-data.line.me'}/v2/bot/richmenu/${richMenuId}/content`, {method: 'POST', headers: {...auth, 'Content-Type': 'image/jpeg'}, body: image});
-  await lineApi(env, `/v2/bot/user/${u.id}/richmenu/${richMenuId}`, {});
-  if (s.menu_id) await call(`${env.LINE_API || 'https://api.line.me'}/v2/bot/richmenu/${s.menu_id}`, {method: 'DELETE', headers: auth}).catch(console.error);
+  // LINE keeps at most 1000 menus for a bot, and the scheduled job comes back every 5 minutes. So a menu that could not
+  // be finished (its picture, or giving it to a user who has since left LINE) is taken down again, and the next try
+  // waits an hour: otherwise one user it keeps failing for would use up every menu within days, for everyone.
+  if (Date.now() - s.menu_try < 36e5) return;
+  const drop = id => call(`${env.LINE_API || 'https://api.line.me'}/v2/bot/richmenu/${id}`, {method: 'DELETE', headers: auth}).catch(console.error);
+  let richMenuId;
+  try {
+    const app = await appUrl(env, origin, u.id, '', 45);
+    ({richMenuId} = await (await lineApi(env, '/v2/bot/richmenu', {
+      size: {width: 2500, height: 1686}, selected: true, name: 'paakeen', chatBarText: 'เมนูป้าคีน',
+      areas: MENU_TILES.map(([x, y, width, height, does]) => ({bounds: {x, y, width, height}, action:
+        does === 'add' ? {type: 'uri', uri: app + '&add=1'}
+        : does.startsWith('tab:') ? {type: 'uri', uri: app + '&tab=' + does.slice(4)}
+        : {type: 'postback', data: does, displayText: does === 'sum' ? 'สรุป' : 'วิธีใช้'}})),
+    })).json());
+    const image = await (await env.ASSETS.fetch(origin + '/menu.jpg')).arrayBuffer();
+    await call(`${env.LINE_DATA_API || 'https://api-data.line.me'}/v2/bot/richmenu/${richMenuId}/content`, {method: 'POST', headers: {...auth, 'Content-Type': 'image/jpeg'}, body: image});
+    await lineApi(env, `/v2/bot/user/${u.id}/richmenu/${richMenuId}`, {});
+  } catch (e) {
+    if (richMenuId) await drop(richMenuId);
+    await saveSettings(env, u, {menu_try: Date.now()}).catch(console.error);
+    throw e;
+  }
+  if (s.menu_id) await drop(s.menu_id);
   await saveSettings(env, u, {menu_at: Date.now(), menu_id: richMenuId, menu_v: MENU_VERSION, menu_origin: origin});
 }
 
