@@ -431,7 +431,7 @@ const EN = {
   'ป้าจะจัดหมวดตามรายการเก่าๆ ที่หลานเคยจด': 'Reuses the category you gave the same item before.',
   'จดประจำ': 'Recurring entries', 'เพิ่มรายการจดประจำ': 'Add recurring entry', 'ช่องทางชำระเงิน': 'Payment channels',
   'ติดตามช่องทางชำระเงิน': 'Track payment channel',
-  'ป้าจะจับคู่ช่องทางจากข้อความ เสียง รูป หรือ PDF และจะถามเฉพาะตอนที่ไม่แน่ใจ': 'Matched from your text, voice, photos or PDFs. The bot asks only when unsure.',
+  'ป้าจะจับคู่ช่องทางจากข้อความ เสียง รูป หรือ PDF และจะถามเฉพาะตอนที่ไม่แน่ใจ รายการที่จ่ายด้วยช่องทางเดิมสองครั้งล่าสุด ป้าจะใช้ช่องทางนั้นเลยโดยไม่ถาม': 'Matched from your text, voice, photos or PDFs. The bot asks only when unsure. An item paid the same way the last two times is filed that way without asking.',
   'เพิ่มช่องทาง': 'Add channel', 'บัตรเครดิต': 'Credit cards', 'เพิ่มบัตรเครดิต': 'Add credit card', 'ชื่อบัตร': 'Card name', 'เงินสด': 'Cash', 'ไม่ระบุ': 'Not set',
   'ยอดตามช่องทาง': 'Charged per payment channel', 'สลิปที่ส่งมาจะจดเป็นเงินสด ถ้าชื่อบนสลิปไม่ชัดว่าเป็นร้านอะไร ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ': 'Slips are recorded as cash. If the name on a slip does not clearly say what the place is, the bot asks for a name, then picks the category from it.', 'ข้อความยืนยันหลังจด': 'Confirmation message', 'การ์ด': 'Card', 'ข้อความสั้น': 'Short text',
   'การแจ้งเตือน': 'Reminders', 'เตือนจดประจำวัน': 'Daily reminder', 'ปิด': 'Off',
@@ -1140,7 +1140,7 @@ const VIEWS = {
     return `${title('ตั้งค่า')}
     <div class="group"><div class="row">${S.user.picture ? `<img class="avatar" style="width:52px;height:52px" src="${esc(S.user.picture)}" alt="">`
       : `<span class="avatar initial" aria-hidden="true">${esc([...(S.user.name || 'ป้าคีน')][0])}</span>`}
-      <div class="grow"><div style="font-size:20px;font-weight:600">${esc(S.user.name || 'ป้าคีน')}</div><div class="sub">${S.entries.length} ${L('รายการ', 'entries')}</div></div></div></div>
+      <div class="grow" style="font-size:20px;font-weight:600">${esc(S.user.name || 'ป้าคีน')}</div></div></div>
 
     <div class="sect"><span>การจด</span></div>
     <div class="group">
@@ -1162,7 +1162,7 @@ const VIEWS = {
       ${chans(c => c.type !== 'card')}
       ${S.channels.length < 10 ? `<button class="row tap link" onclick="addChannel('other')">${I.plus}<span>เพิ่มช่องทาง</span></button>` : ''}
     </div>
-    <p class="foot">ป้าจะจับคู่ช่องทางจากข้อความ เสียง รูป หรือ PDF และจะถามเฉพาะตอนที่ไม่แน่ใจ</p>
+    <p class="foot">ป้าจะจับคู่ช่องทางจากข้อความ เสียง รูป หรือ PDF และจะถามเฉพาะตอนที่ไม่แน่ใจ รายการที่จ่ายด้วยช่องทางเดิมสองครั้งล่าสุด ป้าจะใช้ช่องทางนั้นเลยโดยไม่ถาม</p>
 
     <div class="sect"><span>บัตรเครดิต</span></div>
     <div class="group">

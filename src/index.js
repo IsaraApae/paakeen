@@ -334,13 +334,24 @@ async function record(env, u, parts, cats, chans) {
     if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12)) continue;
     const mine = cats.filter(c => c.kind === kind);
     let cat = mine.find(c => c.name === e.category) || mine.at(-1), memory = 0;
+    // the same item's earlier entries, newest first: what it was filed under (when memory is on) and how it was paid
+    const learnChannel = chans.length && kind === 'expense' && note;
+    const before = s.memory || learnChannel ? await all(env, `SELECT category_id, channel_id FROM entries
+      WHERE user_id = ? AND kind = ? AND note = ? COLLATE NOCASE ORDER BY id DESC LIMIT 10`, u.id, kind, note) : [];
     if (s.memory) {
-      const seen = await q(env, 'SELECT category_id FROM entries WHERE user_id = ? AND kind = ? AND note = ? COLLATE NOCASE ORDER BY id DESC LIMIT 1', u.id, kind, note).first();
-      const remembered = seen && mine.find(c => c.id === seen.category_id);
+      const remembered = before[0] && mine.find(c => c.id === before[0].category_id);
       if (remembered) [cat, memory] = [remembered, 1];
     }
     const ts = validTs(e.datetime) ? e.datetime : now;
-    const chan = chans.find(c => c.name === e.channel);
+    // How it was paid: as the message says. Otherwise, when the last two times this item had a payment channel it was the
+    // same one, that one again, so the bot doesn't ask a question the user always answers the same way. Paying another
+    // way once (said in the message, picked when asked, or changed in the app) makes it ask again until there is a new habit.
+    let chan = chans.find(c => c.name === e.channel);
+    if (!chan && learnChannel) {
+      const [last, previous] = before.filter(r => r.channel_id != null);
+      const usual = previous && last.channel_id === previous.channel_id && chans.find(c => c.id === last.channel_id);
+      if (usual) [chan, memory] = [usual, 1];
+    }
     const {meta} = await q(env, `${INSERT_ENTRY} VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       u.id, ts, kind, amount, cat?.id ?? null, note, chan?.id ?? null, memory).run();
     const colour = cat ? cat.color || (kind === 'income' ? INCOME_COLOUR : PAL[cats.filter(c => c.kind === 'expense').indexOf(cat) % PAL.length]) : '#A9A9B0';
