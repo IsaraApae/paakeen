@@ -78,6 +78,7 @@ try {
 
   // adding the bot gives the user a chat menu whose first button opens the app
   await hook({type: 'follow'});
+  for (let i = 0; i < 30 && !menus.length; i++) await sleep(100);  // the menu is made just after the reply is sent
   assert.equal(menus.length, 1);
   assert.equal(menus[0].areas.length, 8);
   assert.match(menus[0].areas[0].action.uri, /#t=u1\.\d+\.[0-9a-f]{64}&add=1$/);
@@ -134,7 +135,28 @@ try {
   const skip = asked.quickReply.items.at(-1).action;
   assert.equal(skip.label, 'ข้าม');
   assert.match((await hook({type: 'postback', postback: {data: skip.data}}))[0].text, /ไม่ระบุช่องทาง/);
+  // an item paid the same way the last two times is filed that way without asking
+  const iced = () => say('ชาเย็น 45'), pickChannel = (msgs, name) => hook({type: 'postback', postback: {data: msgs.find(m => m.quickReply).quickReply.items.find(i => i.action.label === name).action.data}});
+  entries = [{kind: 'expense', amount: 45, category: 'เครื่องดื่ม', note: 'ชาเย็น'}];
+  for (let i = 0; i < 2; i++) {
+    const msgs = await iced();
+    assert.ok(msgs.some(m => m.quickReply), `asked the ${i ? 'second' : 'first'} time`);
+    await pickChannel(msgs, 'KTC');
+  }
+  let learned = await iced();
+  assert.equal(learned.some(m => m.quickReply), false);
+  assert.match(JSON.stringify(learned[0]), /เครื่องดื่ม · KTC · จำจากครั้งก่อน/);
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ชาเย็น').map(e => e.channel_id).filter(Boolean).length, 3);
+  // a channel said in the message wins over the habit, and breaks it: the next one is asked about again
+  entries = [{kind: 'expense', amount: 45, category: 'เครื่องดื่ม', note: 'ชาเย็น', channel: 'เงินสด'}];
+  learned = await say('ชาเย็น 45 เงินสด');
+  assert.equal(learned.some(m => m.quickReply), false);
+  assert.match(JSON.stringify(learned[0]), /เครื่องดื่ม · เงินสด/);
+  entries = [{kind: 'expense', amount: 45, category: 'เครื่องดื่ม', note: 'ชาเย็น'}];
+  assert.ok((await iced()).some(m => m.quickReply));
+  // nor is it learned while channels aren't tracked
   await api(t1, 'PUT', 'settings', {track_channel: false});
+  assert.doesNotMatch(JSON.stringify((await iced())[0]), /KTC|เงินสด/);
 
   // API validation and per-user isolation
   for (const bad of [{ts: '2026-01-01 10:00', kind: 'expense', amount: -1}, {kind: 'expense', amount: 5},
