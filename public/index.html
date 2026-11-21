@@ -328,7 +328,7 @@ dialog .group { background: var(--surface); }
 .mock { background: #000; color: #fff; border: .5px solid #FFFFFF2E; border-radius: 22px; padding: 12px; display: grid; gap: 10px;
   font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", system-ui, sans-serif; }
 .mock .cap { font-size: 12px; color: #98989F; padding: 0 4px; }
-.mock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; vertical-align: middle; }
+.mock svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; vertical-align: middle; }
 .mock .dim { color: #98989F; }
 .mock .blue { color: #3E9BFF; }
 .act { background: #2C2C2E; border-radius: 20px; overflow: hidden; }
@@ -339,8 +339,9 @@ dialog .group { background: var(--surface); }
 .act .opt { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 14px; border-top: .5px solid #48484A; }
 .ico { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: #fff; font-style: normal; vertical-align: middle; margin-right: 4px; }
 .ico svg { width: 15px; height: 15px; }
-.mini { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 4px; color: #fff; font: 700 11px/1 -apple-system, sans-serif; font-style: normal; }
-.mini svg { width: 11px; height: 11px; }
+.mini { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; color: #fff; font: 700 11px/1 -apple-system, sans-serif; font-style: normal; }
+.mini svg { width: 12px; height: 12px; }
+.mini.logo svg { width: 18px; height: 18px; }
 .tok { color: #3E9BFF; background: #0A84FF24; border-radius: 7px; padding: 1px 6px; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow-wrap: anywhere; }
 .go { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1.6px solid #3E9BFF; border-radius: 50%; color: #3E9BFF; vertical-align: middle; }
 .go svg { width: 12px; height: 12px; stroke-width: 2.6; }
@@ -1097,14 +1098,19 @@ const VIEWS = {
   setup() {
     // drawn after the real Shortcuts screens: the same icons, tokens, circles and switches
     const sv = d => `<svg viewBox="0 0 24 24">${d}</svg>`;
-    const TRAY = '<path d="M12 3.5v10M8 9.5l4 4 4-4"/><path d="M4.5 14.5v3A2.5 2.5 0 0 0 7 20h10a2.5 2.5 0 0 0 2.5-2.5v-3"/>';
-    const BELL = '<path d="M12 3.6a5.4 5.4 0 0 0-5.4 5.4v4.3L5 16.6h14l-1.6-3.3V9A5.4 5.4 0 0 0 12 3.6z" fill="currentColor"/><path d="M10 19.2a2 2 0 0 0 4 0"/><circle cx="17.6" cy="5.2" r="3.1" fill="currentColor" stroke="#000" stroke-width="1.4"/>';
-    const LAYERS = '<path d="M12 3v7.5M8.8 7.4 12 10.6l3.2-3.2"/><path d="M4 12.6l8 4 8-4"/><path d="M4 16.6l8 4 8-4"/>';
-    const LINEP = '<path d="M12 4.5c-4.6 0-8 2.8-8 6.3 0 3.1 2.7 5.6 6.3 6.2l-.5 2.6 3.6-2.5c3.7-.3 6.6-2.9 6.6-6.3 0-3.5-3.4-6.3-8-6.3z" fill="currentColor" stroke="none"/>';
-    const DIAMONDS = '<rect x="7" y="2.6" width="10" height="10" rx="2.6" transform="rotate(45 12 7.6)" fill="currentColor" fill-opacity=".55" stroke="none"/><rect x="7" y="9.4" width="10" height="10" rx="2.6" transform="rotate(45 12 14.4)" fill="currentColor" stroke="none"/>';
-    const sq = (bg, d) => `<i class="ico" style="background:${bg}">${sv(d)}</i>`, mini = (bg, inner) => `<i class="mini" style="background:${bg}">${inner}</i>`;
-    const SCUT = 'linear-gradient(140deg,#3C8CFF,#A855F7 55%,#FF4F7B)';
-    const GET = sq('#32B150', TRAY), SHOW = sq('#FF453A', BELL), RUN = sq(SCUT, DIAMONDS);
+    // shapes traced from the real Shortcuts screens (an iPhone screenshot), drawn here rather than copied
+    const TRAY = '<path d="M8.6 7.2H7.2a2.6 2.6 0 0 0-2.6 2.6v7.6A2.6 2.6 0 0 0 7.2 20h9.6a2.6 2.6 0 0 0 2.6-2.6V9.8a2.6 2.6 0 0 0-2.6-2.6h-1.4"/><path d="M12 3v10.4M8.6 10.2l3.4 3.4 3.4-3.4"/>';
+    const bell = cut => `<path d="M12 3.4a5.9 5.9 0 0 0-5.9 5.9v4l-1.6 3.1c-.3.6.1 1.2.8 1.2h13.4c.7 0 1.1-.6.8-1.2l-1.6-3.1v-4A5.9 5.9 0 0 0 12 3.4z" fill="currentColor" stroke="none"/>
+      <path d="M9.6 18.9a2.4 2.4 0 0 0 4.8 0z" fill="currentColor" stroke="none"/><circle cx="17.7" cy="5.3" r="3.4" fill="currentColor" stroke="${cut}" stroke-width="1.8"/>`;
+    const LAYERS = '<path d="M12 2.6v8.2M8.9 7.8l3.1 3.1 3.1-3.1"/><path d="M8.2 8.6 4.3 11.4a.9.9 0 0 0 0 1.4l6.9 4.6a1.5 1.5 0 0 0 1.6 0l6.9-4.6a.9.9 0 0 0 0-1.4l-3.9-2.8"/><path d="M5.4 16.2l-1.1.8a.9.9 0 0 0 0 1.4l6.9 4a1.5 1.5 0 0 0 1.6 0l6.9-4a.9.9 0 0 0 0-1.4l-1.1-.8"/>';
+    const LINEP = '<path d="M12 4.6c-4.8 0-8.7 3-8.7 6.8 0 3.4 3.1 6.2 7.2 6.7.6.1.7.5.6 1l-.2 1.3c-.1.5.3.8.8.5 2-1.1 6.1-3.7 8-5.9 1-1.2 1.4-2.3 1.4-3.6 0-3.8-3.9-6.8-8.7-6.8z" fill="#fff" stroke="none"/><text x="12" y="13.1" text-anchor="middle" font-size="4.6" font-weight="900" font-family="Arial, Helvetica, sans-serif" fill="#06C755" stroke="none">LINE</text>';
+    const SHORTCUTS = `<defs><linearGradient id="scb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C6CFF"/><stop offset="1" stop-color="#D46BE0"/></linearGradient>
+      <linearGradient id="sct" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8AB8"/><stop offset="1" stop-color="#B05CF0"/></linearGradient></defs>
+      <rect x="7" y="10" width="10" height="10" rx="2.8" transform="rotate(45 12 15)" fill="url(#scb)" fill-opacity=".85" stroke="none"/>
+      <rect x="7" y="4" width="10" height="10" rx="2.8" transform="rotate(45 12 9)" fill="url(#sct)" stroke="none"/>`;
+    const sq = (bg, d, size) => `<i class="ico" style="background:${bg}"><svg viewBox="0 0 24 24"${size ? ` style="width:${size}px;height:${size}px"` : ''}>${d}</svg></i>`;
+    const mini = (bg, inner, cls = '') => `<i class="mini ${cls}" style="background:${bg}">${inner}</i>`;
+    const GET = sq('#59C75F', TRAY), SHOW = sq('#EB4E45', bell('#EB4E45')), RUN = sq('linear-gradient(160deg,#2A1880,#5B2DC8)', SHORTCUTS, 20);
     const tok = (t, pre = '') => `<span class="tok">${pre}${t}</span>`;
     const INPUT = tok('Shortcut Input', sv(LAYERS)), URLOUT = tok('Contents of URL', mini('#32B150', sv(TRAY)));
     const GO = `<span class="go">${sv('<path d="M10 7.5l4.5 4.5-4.5 4.5"/>')}</span>`, OPEN = `<span class="go">${sv('<path d="M7.5 10l4.5 4.5 4.5-4.5"/>')}</span>`;
@@ -1142,9 +1148,9 @@ const VIEWS = {
         <li>Add <b>Run Shortcut</b> and pick <b>Send to ป้าคีน</b>. Tap the <b>›</b> and set <b>Input</b> to <b>Shortcut Input</b>.</li></ol>
       <div class="mock"><span class="cap">The automation should look like this</span>
         ${RECEIVE}
-        ${card(`<span style="color:#FF453A">${sv(BELL.replace('stroke="#000"', 'stroke="#2C2C2E"'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP)))} ${tok('+')} ${OPEN}`,
+        ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP), 'logo'))} ${tok('+')} ${OPEN}`,
           [['<span class="blue">⊕ Add Filter</span>', ''], ['Automation', '<span class="tg"></span>'], ['Notify', '<span class="tg off"></span>']])}
-        ${card(`${RUN}<b>Run</b> ${tok('Send to ป้าคีน', mini('#F05A57', '$'))} ${OPEN}`, [['Input', INPUT]])}</div>
+        ${card(`${RUN}<b>Run</b> ${tok('Send to ป้าคีน', mini('#EC6A66', '$'))} ${OPEN}`, [['Input', INPUT]])}</div>
       <p class="sub" style="margin:0">Card alerts that come from a card app or by SMS: make one more automation the same way and pick that app instead of LINE.</p></div>
 
     <div class="group step"><h2><i>4</i>Test it</h2>
