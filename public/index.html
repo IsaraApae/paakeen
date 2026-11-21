@@ -336,6 +336,8 @@ dialog .group { background: var(--surface); }
 .act .hd .t { flex: 1; min-width: 0; line-height: 1.95; }
 .act .x { flex: none; width: 22px; height: 22px; margin-top: 3px; border-radius: 50%; background: #48484A; color: #AEAEB2; display: grid; place-items: center; }
 .act .x svg { width: 10px; height: 10px; stroke-width: 3; }
+.act .nest { margin: 0 10px 10px 22px; border-left: 2px solid #48484A; padding-left: 10px; }
+.act .nest .act { background: #3A3A3C; }
 .act .opt { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 14px; border-top: .5px solid #48484A; }
 .ico { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: #fff; font-style: normal; vertical-align: middle; margin-right: 4px; }
 .ico svg { width: 15px; height: 15px; }
@@ -1114,6 +1116,8 @@ const VIEWS = {
     const tok = (t, pre = '') => `<span class="tok">${pre}${t}</span>`;
     const INPUT = tok('Shortcut Input', sv(LAYERS)), URLOUT = tok('Contents of URL', mini('#32B150', sv(TRAY)));
     const GO = `<span class="go">${sv('<path d="M10 7.5l4.5 4.5-4.5 4.5"/>')}</span>`, OPEN = `<span class="go">${sv('<path d="M7.5 10l4.5 4.5 4.5-4.5"/>')}</span>`;
+    const X = `<span class="x">${sv('<path d="M7 7l10 10M17 7 7 17"/>')}</span>`;
+    const IF = sq('#8E8E93', '<path d="M12 21v-7M12 14 6.5 8.5M12 14l5.5-5.5"/><path d="M4.5 6.5V3.5h3M19.5 6.5V3.5h-3"/>');
     const card = (head, opts = [], x = true) => `<div class="act"><div class="hd"><span class="t">${head}</span>${x ? `<span class="x">${sv('<path d="M7 7l10 10M17 7 7 17"/>')}</span>` : ''}</div>
       ${opts.map(([k, v]) => `<div class="opt"><span>${k}</span>${v}</div>`).join('')}</div>`;
     const RECEIVE = card(`<span class="blue">${sv(LAYERS)}</span> <b>Receive</b> ${tok('Apps and 18 more')} <b>from</b> ${tok('Nowhere')}<br><span class="dim">If there's no input:</span> ${tok('Continue')}`, [], false);
@@ -1132,13 +1136,16 @@ const VIEWS = {
         <li>Search for <b>Get Contents of URL</b> and add it. Tap the blue <b>URL</b> and paste your link.</li>
         <li>Tap the <b>›</b> on that step. Set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>JSON</b>.</li>
         <li>Tap <b>Add new field</b> → <b>Text</b>. Type <b>text</b> as the key. Tap the value box, then <b>Shortcut Input</b> above the keyboard.</li>
-        <li>Search for <b>Show Notification</b> and add it. Tap <b>Hello, world!</b>, delete it and pick <b>Contents of URL</b>.</li></ol>
+        <li>Search for <b>Show Notification</b> and add it. Tap <b>Hello, world!</b>, delete it and pick <b>Contents of URL</b>.</li>
+        <li>So only recorded payments pop up: search for <b>If</b> and add it. Set it to <b>Contents of URL</b> · <b>does not contain</b> · <b>ไม่ได้จด</b>. Then hold <b>Show notification</b> and drag it between <b>If</b> and <b>Otherwise</b>.</li></ol>
       <div class="mock"><span class="cap">Send to ป้าคีน should look like this</span>
         ${RECEIVE}
         ${card(`${GET}<b>Get contents of</b> ${tok('https://paakeen.p-isarabhakdi.workers.dev/api/notify?k=…your link…')} ${OPEN}`,
           [['Method', tok('POST')], ['Headers', '<span class="dim">›</span>'], ['Request Body', tok('JSON')], ['<span style="color:#FF453A">⊖</span> text', INPUT],
            ['<span><span style="color:#30D158">⊕</span> <span class="dim">Add new field</span></span>', '']])}
-        ${card(`${SHOW}<b>Show notification</b> ${URLOUT} ${GO}`)}</div>
+        <div class="act"><div class="hd"><span class="t">${IF}<b>If</b> ${URLOUT} ${tok('does not contain')} ${tok('ไม่ได้จด')} ${GO}</span>${X}</div>
+          <div class="nest">${card(`${SHOW}<b>Show notification</b> ${URLOUT} ${GO}`)}</div>
+          <div class="opt"><b>Otherwise</b><span></span></div><div class="opt"><b>End If</b><span></span></div></div></div>
       <p class="sub" style="margin:0">The "Receive … from Nowhere" line at the top can stay as it is.</p></div>
 
     <div class="group step"><h2><i>3</i>Make the automation</h2>
@@ -1155,15 +1162,14 @@ const VIEWS = {
 
     <div class="group step"><h2><i>4</i>Test it</h2>
       <ol><li>Open <b>Send to ป้าคีน</b> and tap <b>▶</b>. If iPhone asks to connect, tap <b>Always Allow</b>.</li>
-        <li>You should see this. It means the link works, and nothing was recorded:</li></ol>
-      ${banner('ไม่ใช่รายการเงิน ไม่ได้จด')}
+        <li>Nothing should pop up: nothing was recorded, so the If keeps it quiet. (Before adding the If you would see "ไม่ใช่รายการเงิน ไม่ได้จด", which also means the link works.)</li></ol>
       <p style="margin:0">After your next payment alert in LINE, you should see this, and the payment appears in รายการ:</p>
       ${banner('ป้าจดแล้ว: -฿120 ร้านข้าวมันไก่ (อาหาร)')}</div>
 
     <div class="group step"><h2><i>?</i>If it doesn't work</h2>
       <ul><li><b>"ลิงก์ไม่ถูกต้อง"</b>: copy your link again (step 1) and paste it into Get Contents of URL.</li>
         <li><b>"Hello, world!"</b>: Show Notification still has the sample text (step 2, last line).</li>
-        <li><b>Always "ไม่ใช่รายการเงิน"</b>, even for a payment: the automation's Run Shortcut needs Input set to Shortcut Input (step 3).</li>
+        <li><b>A payment never shows up in รายการ</b>: the automation's Run Shortcut needs Input set to Shortcut Input (step 3).</li>
         <li><b>Nothing appears</b>: check the automation is switched on in the Automation tab.</li>
         <li><b>Wrong category</b>: change it once in รายการ; ป้าคีน remembers it for that payee next time.</li></ul>
       <p class="sub" style="margin:0">Alerts without an amount of money, like a friend's chat, are not passed on and nothing is kept. Making a new link in ตั้งค่า stops the old one.</p></div>
