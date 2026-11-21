@@ -47,6 +47,10 @@ The hamsters are from [silly hamsters](https://store.line.me/stickershop/product
 - **Recurring entries:** daily, weekly or monthly, added automatically.
 - **Bank alerts in LINE, recorded by themselves (iPhone, iOS 27+):** a Shortcuts automation sends each LINE notification that mentions บาท to `/api/notify` with the link from ตั้งค่า. Text without an amount of money stops there; the rest goes to Gemini, which records a bank, card or wallet payment and ignores chats, promotions, OTPs and declined payments. A card's void alert removes the matching payment, and a payment already recorded (the same amount and name within 2 hours, such as its slip and then its alert) isn't added twice. The Shortcut shows what was recorded as a notification, so it uses none of the LINE message quota.
 
+<p>
+  <img src="docs/notify.jpg" width="400" alt="จดจากแจ้งเตือน LINE in ตั้งค่า, light and dark">
+</p>
+
 ## Web app
 
 Opened from the chat menu with a personal signed link. No password needed. Opened without a link, the page says what ป้าคีน is and how to get one. Amounts are typed on the app's own number pad, drawn in its light or dark theme, rather than the phone's keyboard.
