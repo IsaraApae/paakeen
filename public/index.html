@@ -337,6 +337,7 @@ dialog.alert .kp-keys button { height: 48px; }
 .stat { display: flex; align-items: center; gap: 10px; }
 .arrow { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; background: color-mix(in srgb, currentColor 15%, transparent); }
 .arrow svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.compare { padding: 2px 20px 14px; }
 .rate { font-size: 22px; font-weight: 600; color: var(--label2); letter-spacing: -.01em; }
 /* a row that leads somewhere: a tinted icon tile, a name and a grey line under it */
 .tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red-text); }
@@ -414,6 +415,11 @@ const I = {
 };
 const CHEV = I.chevR.replace('<svg', '<svg class="chev"');
 const EN = {
+  'จดจากแจ้งเตือน LINE (iPhone)': 'Record from LINE notifications (iPhone)', 'คัดลอกลิงก์สำหรับคำสั่งลัด': 'Copy the Shortcut link',
+  'วิธีตั้งค่า': 'How to set it up', 'สร้างลิงก์ใหม่': 'Make a new link', 'เปิดใช้': 'Turn on', 'ตั้งค่าคำสั่งลัด': 'Set up the Shortcut',
+  'เข้าใจแล้ว': 'Got it', 'ลิงก์สำหรับคำสั่งลัด': 'Shortcut link', 'สร้างใหม่': 'Make new',
+  'คำสั่งลัดของ iPhone ส่งแจ้งเตือนจากธนาคารใน LINE มาให้ป้าจดเอง ข้อความที่ไม่มีจำนวนเงินจะไม่ถูกส่งต่อ สร้างลิงก์ใหม่เมื่อไหร่ ลิงก์เก่าจะใช้ไม่ได้':
+    "An iPhone Shortcut sends your bank's LINE alerts here to be recorded. Text without an amount of money isn't passed on. Making a new link stops the old one.",
   'สรุป': 'Summary', 'วิเคราะห์': 'Analysis', 'หมวดหมู่': 'Categories', 'รายการ': 'Entries', 'ตั้งค่า': 'Settings',
   'เหลือเก็บ': 'Left to save', 'รายจ่าย': 'Expense', 'รายรับ': 'Income', 'รายจ่ายตามหมวด': 'Expense by category', 'ยังไม่มีรายจ่ายในเดือนนี้': 'No spending this month yet', 'ยังไม่มีรายรับในเดือนนี้': 'No income this month yet',
   'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
@@ -571,6 +577,16 @@ const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0);
 // one of the balance's two boxes: an arrow in the kind's colour (in for income, out for spending), the label and the amount
 const stat = (label, n, kind) => `<div class="stat"><i class="arrow ${kind}">${kind === 'income' ? I.in : I.out}</i><div class="grow"><div class="sub">${label}</div><div class="mid num ${kind}">${money(n)}</div></div></div>`;
 // the share of income left over, as the report counts it; none without income
+// today's spending (this period only), and spending against the previous period: its same number of days while this one
+// is still running, the whole of it otherwise
+function compare(c) {
+  const t = today(), running = t <= c.to, p = cycle(ui.sumOff - 1), days = Math.round((D(t) - D(c.from)) / 864e5);
+  const now = total(between(c.from, c.to), 'expense'), then = total(between(p.from, running ? addD(p.from, days) : p.to), 'expense');
+  const pct = then ? Math.round((now - then) / then * 100) : null, bits = [];
+  if (running) bits.push(L(`วันนี้จ่าย ${money(total(between(t, t), 'expense'))}`, `Spent today ${money(total(between(t, t), 'expense'))}`));
+  if (pct !== null) bits.push(`<span class="${pct > 0 ? 'expense' : 'income'}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%</span> ${running ? L('จากช่วงเดียวกันรอบก่อน', 'vs same days last period') : L('จากรอบก่อน', 'vs last period')}`);
+  return bits.length ? `<div class="sub compare">${bits.join(' · ')}</div>` : '';
+}
 const rateOf = (inc, exp) => inc > 0 ? Math.round((inc - exp) / inc * 1000) / 10 : null;
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
 const seg = (items, cur, js) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" onclick="${js(v)}">${l}</button>`).join('')}</div>`;
@@ -681,6 +697,22 @@ async function choosePie() {
   const v = await pickOption(L('ช่วงเวลา', 'Period'), [['all', L('สะสม', 'All time')], ...months.map(m => [m, fd(m + '-01', MONTH)])], ui.pie || today().slice(0, 7));
   if (v !== null) U({pie: v});
 }
+// the link an iPhone Shortcut posts LINE notifications to (see notifyHelp); it carries the user's own key
+const notifyLink = () => `${location.origin}/api/notify?k=${S.settings.notify_key}`;
+async function newNotify() {
+  if (S.settings.notify_key && !await ask('สร้างลิงก์ใหม่? คำสั่งลัดที่ใช้ลิงก์เดิมจะหยุดทำงาน', [], {ok: 'สร้างใหม่'})) return;
+  await api('POST', 'notify-key'); await load(); copyNotify();
+}
+async function copyNotify() {
+  try { await navigator.clipboard.writeText(notifyLink()); toast(L('คัดลอกลิงก์แล้ว', 'Link copied')); }
+  catch { ask('ลิงก์สำหรับคำสั่งลัด', [{k: 'link', label: 'ลิงก์', value: notifyLink()}], {ok: 'ปิด'}); }  // no clipboard: show it to copy by hand
+}
+const notifyHelp = () => ask('ตั้งค่าคำสั่งลัด', [], {ok: 'เข้าใจแล้ว', hint: '<span style="display:block;text-align:left;line-height:1.6">' + [
+  '1. กด "คัดลอกลิงก์สำหรับคำสั่งลัด"',
+  '2. แอปคำสั่งลัด → ออโตเมชัน → + → การแจ้งเตือน → เลือกแอป LINE ให้มีคำว่า "บาท" → เรียกใช้ทันที',
+  '3. เพิ่ม "รับเนื้อหาของ URL" วางลิงก์ เลือกวิธี POST เนื้อหาคำขอแบบ JSON ใส่ช่อง text เป็น "อินพุตคำสั่งลัด"',
+  '4. เพิ่ม "แสดงการแจ้งเตือน" ใส่ "เนื้อหาของ URL" เพื่อดูว่าป้าจดอะไร',
+  'ต้องใช้ iOS 27 ขึ้นไป'].join('<br>') + '</span>'});
 async function setRemind() { const v = await pickTime(S.settings.remind); if (v !== null) setS({remind: v}); }
 // One dialog for every form: a full sheet when it has an amount or choices, a compact alert otherwise.
 // Resolves to the field values, 'del', or null.
@@ -1017,6 +1049,7 @@ const VIEWS = {
     <div class="group hero">
       <div class="pad"><div class="sub">เหลือเก็บ</div><div class="big num ${inc - exp < 0 ? 'expense' : ''}" style="white-space:normal">${cents(money(inc - exp))}${rateOf(inc, exp) === null ? '' : ` <span class="rate">• ${rateOf(inc, exp)}%</span>`}</div></div>
       <div class="split">${stat('รายรับ', inc, 'income')}${stat('รายจ่าย', exp, 'expense')}</div>
+      ${compare(c)}
     </div>
     <div class="group"><button class="row tap" onclick="openReport()"><i class="tile">${I.doc}</i><span class="grow lead"><span>รายงานประจำเดือน</span>
       <span class="sub">${cycleLabel(between(cycle(-1).from, cycle(-1).to).length ? cycle(-1) : cycle(0))}</span></span>${CHEV}</button></div>
@@ -1061,7 +1094,8 @@ const VIEWS = {
     if (ui.mode === 'month') {
       history = chart('hist', 'bar', months.map(ml), [{label: exp, data: months.map(m => total(inMonth(m), 'expense')), backgroundColor: css('--expense'), borderRadius: 5, maxBarThickness: 16},
         {label: inc, data: months.map(m => total(inMonth(m), 'income')), backgroundColor: css('--income'), borderRadius: 5, maxBarThickness: 16}],
-        {...base, plugins: {...base.plugins, tooltip: {displayColors: false}}});  // no colour squares in the tap label
+        {...base, plugins: {...base.plugins, tooltip: {displayColors: false}},  // no colour squares in the tap label
+          onClick: (ev, hit) => hit.length && U({mode: 'day', month: months[hit[0].index], pie: months[hit[0].index]})});  // a month's bars open it
     } else {
       // one kind per day as bars (the dashed daily-average line is for spending only); expense and income are switched, not mixed,
       // since one payday would flatten every other day
@@ -1170,6 +1204,14 @@ const VIEWS = {
       ${S.channels.length < 10 ? `<button class="row tap link" onclick="addChannel('card')">${I.plus}<span>เพิ่มบัตรเครดิต</span></button>` : ''}
     </div>
     <p class="foot">สลิปที่ส่งมาจะจดเป็นเงินสด ถ้าชื่อบนสลิปไม่ชัดว่าเป็นร้านอะไร ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ</p>
+
+    <div class="sect"><span>จดจากแจ้งเตือน LINE (iPhone)</span></div>
+    <div class="group">
+      ${s.notify_key ? `<button class="row tap" onclick="copyNotify()"><span class="grow">คัดลอกลิงก์สำหรับคำสั่งลัด</span>${I.share}</button>` : ''}
+      <button class="row tap" onclick="notifyHelp()"><span class="grow">วิธีตั้งค่า</span>${CHEV}</button>
+      <button class="row tap link" onclick="newNotify()">${s.notify_key ? 'สร้างลิงก์ใหม่' : 'เปิดใช้'}</button>
+    </div>
+    <p class="foot">คำสั่งลัดของ iPhone ส่งแจ้งเตือนจากธนาคารใน LINE มาให้ป้าจดเอง ข้อความที่ไม่มีจำนวนเงินจะไม่ถูกส่งต่อ สร้างลิงก์ใหม่เมื่อไหร่ ลิงก์เก่าจะใช้ไม่ได้</p>
 
     <div class="sect"><span>การแจ้งเตือน</span></div>
     <div class="group"><button class="row tap" onclick="setRemind()"><span class="grow">เตือนจดประจำวัน</span><span class="muted">${s.remind || L('ปิด', 'Off')}</span>${CHEV}</button></div>

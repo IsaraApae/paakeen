@@ -46,6 +46,7 @@ const ENTRY_SCHEMA = {
       note: {type: 'STRING'},
       datetime: {type: 'STRING'},
       channel: {type: 'STRING'},
+      cancel: {type: 'BOOLEAN'},
       party: {type: 'STRING', enum: ['business', 'unclear', 'person', 'unknown']},
     },
     required: ['kind', 'amount', 'category', 'note'],
@@ -309,12 +310,17 @@ function snap(note, text) {
   return best && dist <= a.length * 0.4 ? best : note;
 }
 
+// 'YYYY-MM-DD HH:MM' moved by some minutes (local times, compared as text)
+const shiftTs = (ts, min) => new Date(Date.parse(ts.replace(' ', 'T') + 'Z') + min * 60e3).toISOString().slice(0, 16).replace('T', ' ');
+
 // The user's categories and payment channels, which a message's entries are filed under.
 const readLists = (env, uid) => Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', uid),
   all(env, 'SELECT * FROM channels WHERE user_id = ? ORDER BY id', uid)]);
 
 // Ask the model for entries, validate them, save them. Returns the saved entries.
-async function record(env, u, parts, cats, chans) {
+// auto: a slip or a forwarded notification, where one payment can arrive twice (a slip and the bank's alert) and a card
+// payment can be cancelled later; extra: more instructions for the model
+async function record(env, u, parts, cats, chans, {extra = '', auto = false} = {}) {
   const s = settings(u), now = localNow(s);
   if (!s.track_channel) chans = [];
   const names = kind => cats.filter(c => c.kind === kind).map(c => c.name).join(', ');
@@ -327,11 +333,25 @@ async function record(env, u, parts, cats, chans) {
     + '`party` is who received the money (expense) or sent it (income): \'business\' only for a clear, recognisable name of a shop, restaurant, company or brand; '
     + '\'unclear\' for a name that doesn\'t clearly say what the place is, such as an abbreviation, a code, a merchant account or a payment service (like QCS or ก.กาแฟสด); '
     + '\'person\' for a person\'s name, \'unknown\' if it doesn\'t say. For a business or an unclear name, `note` is the name as shown. '
-    + 'If there is no amount of money, return an empty list.';
+    + 'If there is no amount of money, return an empty list.' + extra;
   const saved = [], typed = parts.every(p => p.text !== undefined) && parts.map(p => p.text).join('\n');
-  for (const e of await gemini(env, parts, system)) {
+  const found = await gemini(env, parts, system);
+  for (const e of found) {
     const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind, note = (typed ? snap(String(e?.note ?? ''), typed) : String(e?.note ?? '')).slice(0, 100);
     if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12)) continue;
+    const ts = validTs(e.datetime) ? e.datetime : now;
+    if (auto && e.cancel && kind === 'expense') {  // a voided or cancelled payment takes out the matching entry from the last day
+      const hit = await q(env, "SELECT id, note FROM entries WHERE user_id = ? AND kind = 'expense' AND amount = ? AND ts >= ? ORDER BY ts DESC, id DESC LIMIT 1",
+        u.id, amount, shiftTs(now, -24 * 60)).first();
+      if (hit) await q(env, 'DELETE FROM entries WHERE id = ? AND user_id = ?', hit.id, u.id).run();
+      saved.push({cancelled: !!hit, kind, amount, note: hit?.note || note});
+      continue;
+    }
+    // the same payment already recorded (same amount and name within 2 hours, e.g. its slip and then its alert) isn't added
+    // again; only for a single payment, since a receipt can list the same item twice
+    const dup = auto && found.length === 1 && await q(env, `SELECT id, note FROM entries WHERE user_id = ? AND kind = ? AND amount = ?
+      AND note = ? COLLATE NOCASE AND ts BETWEEN ? AND ? LIMIT 1`, u.id, kind, amount, note, shiftTs(ts, -120), shiftTs(ts, 120)).first();
+    if (dup) { saved.push({dup: true, id: dup.id, kind, amount, note: dup.note}); continue; }
     const mine = cats.filter(c => c.kind === kind);
     let cat = mine.find(c => c.name === e.category) || mine.at(-1), memory = 0;
     // the same item's earlier entries, newest first: what it was filed under (when memory is on) and how it was paid
@@ -342,7 +362,6 @@ async function record(env, u, parts, cats, chans) {
       const remembered = before[0] && mine.find(c => c.id === before[0].category_id);
       if (remembered) [cat, memory] = [remembered, 1];
     }
-    const ts = validTs(e.datetime) ? e.datetime : now;
     // How it was paid: as the message says. Otherwise, when the last two times this item had a payment channel it was the
     // same one, that one again, so the bot doesn't ask a question the user always answers the same way. Paying another
     // way once (said in the message, picked when asked, or changed in the app) makes it ask again until there is a new habit.
@@ -705,8 +724,9 @@ async function handleEvent(env, origin, ev, later = []) {
   }
   let [cats, chans] = await lists;
   if (!cats.length) [cats, chans] = await readLists(env, u.id);  // a user getUser has only just added had none yet
-  const saved = await record(env, u, parts, cats, chans);
+  const saved = await record(env, u, parts, cats, chans, {auto: m.type === 'image'});
   console.log(JSON.stringify({recorded: m.type, entries: saved.length, ms: Date.now() - t0}));
+  if (saved.length === 1 && saved[0].dup) return [textMsg('สลิปนี้ป้าจดไว้แล้วจ้ะ'), await entryCard(env, origin, u, saved[0].id)];
   if (m.type === 'image' && saved.length === 1) {  // a slip: paid in cash; ask the name (unless it went to a shop), then show the card
     const e = saved[0];
     let cash = e.kind === 'expense' && chans.find(c => c.type === 'cash');
@@ -835,6 +855,11 @@ async function api(env, u, method, path, body, state) {
     if (await applyRecurring(env, u, recurring)) [categories, channels, recurring, entries] = await readState(env, uid);
     return {user: {name: u.name, picture: u.picture}, settings: settings(u), categories, channels, recurring, entries};
   }
+  if (method === 'POST' && path.join('/') === 'notify-key') {  // a new link for the Shortcut; the old one stops working
+    const notify_key = `${uid}.${hex(crypto.getRandomValues(new Uint8Array(16)))}`;
+    await writeSettings(env, uid, {notify_key});
+    return {notify_key};
+  }
   if (method === 'PUT' && path.join('/') === 'settings') {
     await writeSettings(env, uid, validated(SETTINGS, body));
     return {};
@@ -877,6 +902,46 @@ async function api(env, u, method, path, body, state) {
   need(false);
 }
 
+// An iPhone Shortcut sends LINE notifications here (ตั้งค่า → จดจากแจ้งเตือน), so a bank's payment alert is recorded
+// without opening anything. Only text that mentions money goes on to the model, which records a bank, card or wallet
+// alert and ignores the rest. The answer is plain text for the Shortcut to show as a notification.
+const NOTIFY = ' This is the text of a phone notification, forwarded automatically. Record it only if it is a bank, credit card '
+  + 'or e-wallet alert about money leaving or reaching the user\'s own account (a payment, transfer, top-up or money received); '
+  + 'return an empty list for anything else, such as a chat, a promotion, a balance-only message or an OTP. Money received is income. '
+  + '`note` is the payee or payer as shown, otherwise what the alert calls the transaction. '
+  + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
+  + 'Return an empty list for a declined payment, a statement or bill reminder, cashback, a refund, points or a promotion.';
+async function notify(request, env, url) {
+  const key = url.searchParams.get('k') || (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+  const u = request.method === 'POST' && key.includes('.') && await getUser(env, key.slice(0, key.lastIndexOf('.')));
+  const s = u && settings(u), a = enc.encode(s?.notify_key || ''), b = enc.encode(key);
+  if (!a.length || a.length !== b.length || !crypto.subtle.timingSafeEqual(a, b)) {
+    return new Response('ลิงก์ไม่ถูกต้อง คัดลอกใหม่จากแอปป้าคีน → ตั้งค่า', {status: 401});
+  }
+  const raw = await request.text();
+  let text = raw;
+  try { text = JSON.parse(raw).text ?? raw; } catch { text = new URLSearchParams(raw).get('text') ?? raw; }
+  text = String(text).trim().slice(0, 1000);
+  const say = (msg, status = 200) => new Response(msg, {status, headers: {'Content-Type': 'text/plain; charset=utf-8'}});
+  // everything else (a friend's chat) never leaves this worker
+  if (!/\d/.test(text) || !/บาท|฿|THB|baht/i.test(text)) return say('ไม่ใช่รายการเงิน ไม่ได้จด');
+  // the same alert can come twice; an exact repeat within 10 minutes is skipped (only its hash is kept)
+  const hash = hex(await crypto.subtle.digest('SHA-256', enc.encode(text)));
+  if (s.last_notify?.hash === hash && Date.now() - s.last_notify.at < 10 * 60e3) return say('รายการนี้จดไปแล้ว');
+  await saveSettings(env, u, {last_notify: {hash, at: Date.now()}});
+  let saved;
+  try {
+    saved = await record(env, u, [{text}], ...await readLists(env, u.id), {extra: NOTIFY, auto: true});
+  } catch (e) {
+    console.error(e);
+    return say(e.status === 429 ? QUOTA : e.status === 503 ? BUSY : FAIL, 503);
+  }
+  console.log(JSON.stringify({notify: saved.length}));
+  const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
+  return say(saved.map(e => e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
+    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})`).join('\n') || 'ไม่ใช่รายการเงิน ไม่ได้จด');
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -886,6 +951,7 @@ export default {
     if (request.method === 'POST' && url.pathname === '/webhook') return webhook(request, env, ctx);
     await init(env);
     if (!url.pathname.startsWith('/api/')) return new Response('not found', {status: 404});
+    if (url.pathname === '/api/notify') return notify(request, env, url);
     const uid = await checkToken(env, (request.headers.get('Authorization') || '').replace(/^Bearer /, ''));
     // opening the app reads its data alongside the user: one wait for the database instead of two
     const state = uid && request.method === 'GET' && url.pathname === '/api/state' ? readState(env, uid) : null;
