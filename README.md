@@ -45,6 +45,11 @@ The hamsters are from [silly hamsters](https://store.line.me/stickershop/product
 - **Chat menu:** under the chat, จดรายการ opens a new entry in the web app, สรุปในแชต and วิธีใช้ answer in the chat, and the bar along the bottom opens each of the app's five tabs.
 - **Daily reminder:** a message at your chosen time on days with nothing recorded.
 - **Recurring entries:** daily, weekly or monthly, added automatically.
+- **Bank alerts in LINE, recorded by themselves (iPhone, iOS 27+):** a Shortcuts automation (set up from ตั้งค่า → วิธีตั้งค่า, an English step-by-step page with drawings of each Shortcuts screen) sends each LINE notification to `/api/notify` with the link from ตั้งค่า (with no word filter, since card alerts often say THB rather than บาท; card alerts sent by SMS are a second trigger in the same automation, Messages filtered by the sender's title, such as UOBT). Text without an amount of money stops there and is not kept; the rest goes to Gemini, which records money spent (a bank, card or wallet payment, transfer out or top-up) and ignores money received, chats, promotions, OTPs and declined payments. When the payee isn't clearly a shop (a code, a person, an unknown name), ป้าคีน asks in LINE what it was, as for a slip, and the next message names it; this is a push message, so it counts toward the official account's monthly limit. The category comes from the last entry with the same payee when category memory is on, otherwise from the model's guess; fixing it once in the app is remembered next time. A card's void alert removes the matching payment, and a payment already recorded (the same amount and name within 2 hours, such as its slip and then its alert) isn't added twice. The Shortcut shows what was recorded as a notification, so it uses none of the LINE message quota.
+
+<p>
+  <img src="docs/notify.jpg" width="400" alt="จดจากแจ้งเตือน LINE in ตั้งค่า, light and dark">
+</p>
 
 ## Web app
 
@@ -52,8 +57,8 @@ Opened from the chat menu with a personal signed link. No password needed. Opene
 
 | Tab | What it shows |
 |---|---|
-| สรุป | Income, expenses and what's left for the current period (starts on your chosen day of the month), a link to รายงานประจำเดือน, spending by category, totals per payment channel, latest entries |
-| วิเคราะห์ | Six months of income and expense bars; daily bars for spending or income with the daily spending average; spending by category for any month or all time |
+| สรุป | Income, expenses and what's left for the current period (starts on your chosen day of the month), today's spending and how this period's spending compares with the same days of the last one, a link to รายงานประจำเดือน, spending by category, totals per payment channel, latest entries |
+| วิเคราะห์ | Six months of income and expense bars (tap a month to open its days); daily bars for spending or income with the daily spending average; spending by category for any month or all time |
 | หมวดหมู่ | Add, rename, recolour and reorder categories, and give each one an emoji; set the day each period starts |
 | รายการ | Every entry, filtered by type, period and category (only categories used in that period, biggest spend first); select several to recategorise or delete; export to Excel or CSV |
 | ตั้งค่า | Category memory, reply style, recurring entries, payment channels and cards, reminder time, the monthly report on or off, theme (light, dark or match device), Thai or English, currency, time zone |

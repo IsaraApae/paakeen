@@ -317,6 +317,44 @@ dialog .group { background: var(--surface); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pill.danger { color: var(--red-text); }
 .pill.wide { width: 100%; }
+/* the Shortcut setup page: numbered steps, each with a drawing of how its Shortcuts screen should look */
+.steps { display: grid; gap: 14px; }
+.step { display: grid; gap: 10px; padding: 18px 20px; }
+.step > *::before { display: none; }  /* one card of text and drawings, without the list's divider lines */
+.step h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 10px; }
+.step h2 i { font-style: normal; width: 26px; height: 26px; border-radius: 50%; background: var(--red-tint); color: var(--red); display: grid; place-items: center; font-size: 14px; flex: none; }
+.step ol, .step ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; }
+.step b { font-weight: 600; }
+.mock { background: #000; color: #fff; border: .5px solid #FFFFFF2E; border-radius: 22px; padding: 12px; display: grid; gap: 10px;
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", system-ui, sans-serif; }
+.mock .cap { font-size: 12px; color: #98989F; padding: 0 4px; }
+.mock svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; vertical-align: middle; }
+.mock .dim { color: #98989F; }
+.mock .blue { color: #3E9BFF; }
+.act { background: #2C2C2E; border-radius: 20px; overflow: hidden; }
+.act .hd { display: flex; align-items: flex-start; gap: 8px; padding: 11px 12px 11px 14px; }
+.act .hd .t { flex: 1; min-width: 0; line-height: 1.95; }
+.act .x { flex: none; width: 22px; height: 22px; margin-top: 3px; border-radius: 50%; background: #48484A; color: #AEAEB2; display: grid; place-items: center; }
+.act .x svg { width: 10px; height: 10px; stroke-width: 3; }
+.act .nest { margin: 0 10px 10px 22px; border-left: 2px solid #48484A; padding-left: 10px; }
+.act .nest .act { background: #3A3A3C; }
+.act .opt { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 14px; border-top: .5px solid #48484A; }
+.ico { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: #fff; font-style: normal; vertical-align: middle; margin-right: 4px; }
+.ico svg { width: 15px; height: 15px; }
+.mini { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; color: #fff; font: 700 11px/1 -apple-system, sans-serif; font-style: normal; }
+.mini svg { width: 12px; height: 12px; }
+.mini.logo svg { width: 18px; height: 18px; }
+.tok { color: #3E9BFF; background: #0A84FF24; border-radius: 7px; padding: 1px 6px; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow-wrap: anywhere; }
+.go { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1.6px solid #3E9BFF; border-radius: 50%; color: #3E9BFF; vertical-align: middle; }
+.go svg { width: 12px; height: 12px; stroke-width: 2.6; }
+.tg { width: 46px; height: 28px; border-radius: 14px; background: #34C759; position: relative; flex: none; }
+.tg::after { content: ""; position: absolute; top: 2px; left: 20px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
+.tg.off { background: #39393D; } .tg.off::after { left: 2px; }
+.banner { background: #3A3A3CF0; border-radius: 18px; padding: 11px 13px; display: grid; grid-template-columns: auto 1fr auto; gap: 1px 10px; align-items: center; }
+.banner .ico { grid-row: span 2; width: 38px; height: 38px; border-radius: 9px; margin: 0; }
+.banner .ico svg { width: 24px; height: 24px; }
+.banner small { color: #98989F; font-size: 12px; }
+.banner span { grid-column: 2 / 4; }
 .rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
 .rep-title h1 { min-width: 0; }
 .says { margin: 0; padding: 16px 20px 16px 36px; display: grid; gap: 8px; font-size: 15px; }
@@ -337,6 +375,7 @@ dialog.alert .kp-keys button { height: 48px; }
 .stat { display: flex; align-items: center; gap: 10px; }
 .arrow { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; background: color-mix(in srgb, currentColor 15%, transparent); }
 .arrow svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.compare { padding: 2px 20px 14px; }
 .rate { font-size: 22px; font-weight: 600; color: var(--label2); letter-spacing: -.01em; }
 /* a row that leads somewhere: a tinted icon tile, a name and a grey line under it */
 .tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--red-tint); color: var(--red-text); }
@@ -414,6 +453,11 @@ const I = {
 };
 const CHEV = I.chevR.replace('<svg', '<svg class="chev"');
 const EN = {
+  'จดจากแจ้งเตือน LINE (iPhone)': 'Record from LINE notifications (iPhone)', 'คัดลอกลิงก์สำหรับคำสั่งลัด': 'Copy the Shortcut link',
+  'วิธีตั้งค่า': 'How to set it up', 'สร้างลิงก์ใหม่': 'Make a new link', 'เปิดใช้': 'Turn on', 
+  'ลิงก์สำหรับคำสั่งลัด': 'Shortcut link', 'สร้างใหม่': 'Make new',
+  'คำสั่งลัดของ iPhone ส่งแจ้งเตือนจากธนาคารใน LINE มาให้ป้าจดเอง ข้อความที่ไม่มีจำนวนเงินจะไม่ถูกส่งต่อ สร้างลิงก์ใหม่เมื่อไหร่ ลิงก์เก่าจะใช้ไม่ได้':
+    "An iPhone Shortcut sends your bank's LINE alerts here to be recorded. Text without an amount of money isn't passed on. Making a new link stops the old one.",
   'สรุป': 'Summary', 'วิเคราะห์': 'Analysis', 'หมวดหมู่': 'Categories', 'รายการ': 'Entries', 'ตั้งค่า': 'Settings',
   'เหลือเก็บ': 'Left to save', 'รายจ่าย': 'Expense', 'รายรับ': 'Income', 'รายจ่ายตามหมวด': 'Expense by category', 'ยังไม่มีรายจ่ายในเดือนนี้': 'No spending this month yet', 'ยังไม่มีรายรับในเดือนนี้': 'No income this month yet',
   'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
@@ -571,6 +615,16 @@ const donut = (id, rows) => { const sum = rows.reduce((a, r) => a + r[1], 0);
 // one of the balance's two boxes: an arrow in the kind's colour (in for income, out for spending), the label and the amount
 const stat = (label, n, kind) => `<div class="stat"><i class="arrow ${kind}">${kind === 'income' ? I.in : I.out}</i><div class="grow"><div class="sub">${label}</div><div class="mid num ${kind}">${money(n)}</div></div></div>`;
 // the share of income left over, as the report counts it; none without income
+// today's spending (this period only), and spending against the previous period: its same number of days while this one
+// is still running, the whole of it otherwise
+function compare(c) {
+  const t = today(), running = t <= c.to, p = cycle(ui.sumOff - 1), days = Math.round((D(t) - D(c.from)) / 864e5);
+  const now = total(between(c.from, c.to), 'expense'), then = total(between(p.from, running ? addD(p.from, days) : p.to), 'expense');
+  const pct = then ? Math.round((now - then) / then * 100) : null, bits = [];
+  if (running) bits.push(L(`วันนี้จ่าย ${money(total(between(t, t), 'expense'))}`, `Spent today ${money(total(between(t, t), 'expense'))}`));
+  if (pct !== null) bits.push(`<span class="${pct > 0 ? 'expense' : 'income'}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%</span> ${running ? L('จากช่วงเดียวกันรอบก่อน', 'vs same days last period') : L('จากรอบก่อน', 'vs last period')}`);
+  return bits.length ? `<div class="sub compare">${bits.join(' · ')}</div>` : '';
+}
 const rateOf = (inc, exp) => inc > 0 ? Math.round((inc - exp) / inc * 1000) / 10 : null;
 const title = (text, acts = '') => `<div class="title"><h1>${text}</h1></div><div class="acts">${acts}</div>`;
 const seg = (items, cur, js) => `<div class="seg">${items.map(([v, l]) => `<button class="${v === cur ? 'on' : ''}" onclick="${js(v)}">${l}</button>`).join('')}</div>`;
@@ -681,6 +735,17 @@ async function choosePie() {
   const v = await pickOption(L('ช่วงเวลา', 'Period'), [['all', L('สะสม', 'All time')], ...months.map(m => [m, fd(m + '-01', MONTH)])], ui.pie || today().slice(0, 7));
   if (v !== null) U({pie: v});
 }
+// the link an iPhone Shortcut posts LINE notifications to (see notifyHelp); it carries the user's own key
+const notifyLink = () => `${location.origin}/api/notify?k=${S.settings.notify_key}`;
+async function newNotify() {
+  if (S.settings.notify_key && !await ask('สร้างลิงก์ใหม่? คำสั่งลัดที่ใช้ลิงก์เดิมจะหยุดทำงาน', [], {ok: 'สร้างใหม่'})) return;
+  await api('POST', 'notify-key'); await load(); copyNotify();
+}
+async function copyNotify() {
+  try { await navigator.clipboard.writeText(notifyLink()); toast(L('คัดลอกลิงก์แล้ว', 'Link copied')); }
+  catch { ask('ลิงก์สำหรับคำสั่งลัด', [{k: 'link', label: 'ลิงก์', value: notifyLink()}], {ok: 'ปิด'}); }  // no clipboard: show it to copy by hand
+}
+const notifyHelp = () => go('setup');
 async function setRemind() { const v = await pickTime(S.settings.remind); if (v !== null) setS({remind: v}); }
 // One dialog for every form: a full sheet when it has an amount or choices, a compact alert otherwise.
 // Resolves to the field values, 'del', or null.
@@ -857,7 +922,7 @@ function render() {
   document.documentElement.lang = S.settings.lang === 'en' ? 'en' : 'th';  // so screen readers pick the right voice
   charts.forEach(c => c.destroy()); charts = []; after = []; waiting = [];
   if (window.Chart) chartDefaults();
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === (tab === 'report' ? 'sum' : tab)));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === ({report: 'sum', setup: 'set'}[tab] || tab)));
   document.body.classList.toggle('selecting', !!ui.sel);
   const chips = $('.chips'), was = chips && [chips.dataset.k, chips.scrollLeft];
   $('#main').innerHTML = VIEWS[tab]();
@@ -1012,11 +1077,12 @@ const VIEWS = {
   sum() {
     const c = cycle(ui.sumOff), list = between(c.from, c.to), exp = total(list, 'expense'), inc = total(list, 'income');
     const rows = catRows(list), used = rows.filter(r => r[1]);
-    return `${title('สรุป', S.user.picture ? `<img class="avatar" src="${esc(S.user.picture)}" alt="${esc(S.user.name)}">` : '')}
+    return `${title('สรุป')}
     ${stepper(cycleLabel(c), 'U({sumOff: ui.sumOff - 1})', 'U({sumOff: ui.sumOff + 1})', ui.sumOff >= 0)}
     <div class="group hero">
       <div class="pad"><div class="sub">เหลือเก็บ</div><div class="big num ${inc - exp < 0 ? 'expense' : ''}" style="white-space:normal">${cents(money(inc - exp))}${rateOf(inc, exp) === null ? '' : ` <span class="rate">• ${rateOf(inc, exp)}%</span>`}</div></div>
       <div class="split">${stat('รายรับ', inc, 'income')}${stat('รายจ่าย', exp, 'expense')}</div>
+      ${compare(c)}
     </div>
     <div class="group"><button class="row tap" onclick="openReport()"><i class="tile">${I.doc}</i><span class="grow lead"><span>รายงานประจำเดือน</span>
       <span class="sub">${cycleLabel(between(cycle(-1).from, cycle(-1).to).length ? cycle(-1) : cycle(0))}</span></span>${CHEV}</button></div>
@@ -1028,6 +1094,97 @@ const VIEWS = {
     </div>
     ${S.channels.length ? `<div class="sect"><span>ยอดตามช่องทาง</span></div><div class="group">${channelRows(list)}</div>` : ''}
     ${S.entries.length ? `<div class="sect"><b>รายการล่าสุด</b><button class="link" onclick="go('list')">ดูทั้งหมด</button></div>${days(S.entries.slice(0, 7))}` : ''}`;
+  },
+
+  // the Shortcut setup, in English only, with drawings of each Shortcuts screen (no screenshots: those would show a private link)
+  setup() {
+    // drawn after the real Shortcuts screens: the same icons, tokens, circles and switches
+    const sv = d => `<svg viewBox="0 0 24 24">${d}</svg>`;
+    // shapes traced from the real Shortcuts screens (an iPhone screenshot), drawn here rather than copied
+    const TRAY = '<path d="M8.6 7.2H7.2a2.6 2.6 0 0 0-2.6 2.6v7.6A2.6 2.6 0 0 0 7.2 20h9.6a2.6 2.6 0 0 0 2.6-2.6V9.8a2.6 2.6 0 0 0-2.6-2.6h-1.4"/><path d="M12 3v10.4M8.6 10.2l3.4 3.4 3.4-3.4"/>';
+    const bell = cut => `<path d="M12 3.4a5.9 5.9 0 0 0-5.9 5.9v4l-1.6 3.1c-.3.6.1 1.2.8 1.2h13.4c.7 0 1.1-.6.8-1.2l-1.6-3.1v-4A5.9 5.9 0 0 0 12 3.4z" fill="currentColor" stroke="none"/>
+      <path d="M9.6 18.9a2.4 2.4 0 0 0 4.8 0z" fill="currentColor" stroke="none"/><circle cx="17.7" cy="5.3" r="3.4" fill="currentColor" stroke="${cut}" stroke-width="1.8"/>`;
+    const LAYERS = '<path d="M12 2.6v8.2M8.9 7.8l3.1 3.1 3.1-3.1"/><path d="M8.2 8.6 4.3 11.4a.9.9 0 0 0 0 1.4l6.9 4.6a1.5 1.5 0 0 0 1.6 0l6.9-4.6a.9.9 0 0 0 0-1.4l-3.9-2.8"/><path d="M5.4 16.2l-1.1.8a.9.9 0 0 0 0 1.4l6.9 4a1.5 1.5 0 0 0 1.6 0l6.9-4a.9.9 0 0 0 0-1.4l-1.1-.8"/>';
+    const LINEP = '<path d="M12 4.6c-4.8 0-8.7 3-8.7 6.8 0 3.4 3.1 6.2 7.2 6.7.6.1.7.5.6 1l-.2 1.3c-.1.5.3.8.8.5 2-1.1 6.1-3.7 8-5.9 1-1.2 1.4-2.3 1.4-3.6 0-3.8-3.9-6.8-8.7-6.8z" fill="#fff" stroke="none"/><text x="12" y="13.1" text-anchor="middle" font-size="4.6" font-weight="900" font-family="Arial, Helvetica, sans-serif" fill="#06C755" stroke="none">LINE</text>';
+    const SHORTCUTS = `<defs><linearGradient id="scb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C6CFF"/><stop offset="1" stop-color="#D46BE0"/></linearGradient>
+      <linearGradient id="sct" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8AB8"/><stop offset="1" stop-color="#B05CF0"/></linearGradient></defs>
+      <rect x="7" y="10" width="10" height="10" rx="2.8" transform="rotate(45 12 15)" fill="url(#scb)" fill-opacity=".85" stroke="none"/>
+      <rect x="7" y="4" width="10" height="10" rx="2.8" transform="rotate(45 12 9)" fill="url(#sct)" stroke="none"/>`;
+    const sq = (bg, d, size) => `<i class="ico" style="background:${bg}"><svg viewBox="0 0 24 24"${size ? ` style="width:${size}px;height:${size}px"` : ''}>${d}</svg></i>`;
+    const mini = (bg, inner, cls = '') => `<i class="mini ${cls}" style="background:${bg}">${inner}</i>`;
+    const GET = sq('#59C75F', TRAY), SHOW = sq('#EB4E45', bell('#EB4E45')), RUN = sq('linear-gradient(160deg,#2A1880,#5B2DC8)', SHORTCUTS, 20);
+    const tok = (t, pre = '') => `<span class="tok">${pre}${t}</span>`;
+    const INPUT = tok('Shortcut Input', sv(LAYERS)), URLOUT = tok('Contents of URL', mini('#59C75F', sv(TRAY)));
+    const BUBBLE = '<path d="M12 5c-4.7 0-8.4 3-8.4 6.8 0 2.1 1.1 3.9 2.9 5.2-.2 1.1-.8 2.1-1.6 2.8 1.6 0 3.1-.6 4.2-1.4.9.2 1.9.3 2.9.3 4.7 0 8.4-3 8.4-6.9S16.7 5 12 5z" fill="#fff" stroke="none"/>';
+    const LINES = '<path d="M7 8h10M7 12h10M7 16h6"/>', GETTEXT = sq('#F5C242', LINES), TEXTOUT = tok('Text', mini('#F5C242', sv(LINES)));
+    const GO = `<span class="go">${sv('<path d="M10 7.5l4.5 4.5-4.5 4.5"/>')}</span>`, OPEN = `<span class="go">${sv('<path d="M7.5 10l4.5 4.5 4.5-4.5"/>')}</span>`;
+    const X = `<span class="x">${sv('<path d="M7 7l10 10M17 7 7 17"/>')}</span>`;
+    const IF = sq('#8E8E93', '<path d="M12 21v-7M12 14 6.5 8.5M12 14l5.5-5.5"/><path d="M4.5 6.5V3.5h3M19.5 6.5V3.5h-3"/>');
+    const card = (head, opts = [], x = true) => `<div class="act"><div class="hd"><span class="t">${head}</span>${x ? `<span class="x">${sv('<path d="M7 7l10 10M17 7 7 17"/>')}</span>` : ''}</div>
+      ${opts.map(([k, v]) => `<div class="opt"><span>${k}</span>${v}</div>`).join('')}</div>`;
+    const RECEIVE = card(`<span class="blue">${sv(LAYERS)}</span> <b>Receive</b> ${tok('Apps and 18 more')} <b>from</b> ${tok('Nowhere')}<br><span class="dim">If there's no input:</span> ${tok('Continue')}`, [], false);
+    const banner = text => `<div class="mock"><div class="banner">${RUN}<b>Send to ป้าคีน</b><small>now</small><span>${text}</span></div></div>`;
+    const linkBtn = S.settings.notify_key ? `<button class="pill tint wide" onclick="copyNotify()">Copy my link</button>`
+      : `<button class="pill tint wide" onclick="newNotify()">Turn on and copy my link</button>`;
+    return `<div class="title rep-title"><button class="ib" onclick="go('set')" aria-label="Back">${I.chevL}</button><h1>Auto-record setup</h1></div>
+    <div class="group step"><p style="margin:0">When your bank or card sends a payment alert in LINE, your iPhone passes it to ป้าคีน, which records it as an expense. Money you receive is not recorded.</p>
+      <p class="sub" style="margin:0">You set this up once in the <b>Shortcuts</b> app, in about 3 minutes. Needs iOS 27 or later.</p></div>
+    <div class="steps">
+    <div class="group step"><h2><i>1</i>Copy your link</h2>
+      <p style="margin:0">This private link lets the Shortcut send alerts to your account. Keep it to yourself.</p>${linkBtn}</div>
+
+    <div class="group step"><h2><i>2</i>Make the shortcut</h2>
+      <ol><li>Open <b>Shortcuts</b>, tap <b>+</b> and name it <b>Send to ป้าคีน</b>.</li>
+        <li>Search for <b>Get Contents of URL</b> and add it. Tap the blue <b>URL</b> and paste your link.</li>
+        <li>Tap the <b>›</b> on that step. Set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>JSON</b>.</li>
+        <li>Tap <b>Add new field</b> → <b>Text</b>. Type <b>text</b> as the key. Tap the value box, then <b>Shortcut Input</b> above the keyboard.</li>
+        <li>Search for <b>Get Text from Input</b> and add it. It should say <b>Get text from Contents of URL</b>.</li>
+        <li>Search for <b>If</b> and add it. Set it to <b>Text</b> · <b>has any value</b>, so only recorded payments pop up.</li>
+        <li>Search for <b>Show Notification</b> and drag it between <b>If</b> and <b>Otherwise</b>. Tap <b>Hello, world!</b>, delete it and pick <b>Text</b>.</li></ol>
+      <div class="mock"><span class="cap">Send to ป้าคีน should look like this</span>
+        ${RECEIVE}
+        ${card(`${GET}<b>Get contents of</b> ${tok('https://paakeen.p-isarabhakdi.workers.dev/api/notify?k=…your link…')} ${OPEN}`,
+          [['Method', tok('POST')], ['Headers', '<span class="dim">›</span>'], ['Request Body', tok('JSON')], ['<span style="color:#FF453A">⊖</span> text', INPUT],
+           ['<span><span style="color:#30D158">⊕</span> <span class="dim">Add new field</span></span>', '']])}
+        ${card(`${GETTEXT}<b>Get text from</b> ${URLOUT}`)}
+        <div class="act"><div class="hd"><span class="t">${IF}<b>If</b> ${TEXTOUT} ${tok('has any value')}</span>${X}</div>
+          <div class="nest">${card(`${SHOW}<b>Show notification</b> ${TEXTOUT} ${GO}`)}</div>
+          <div class="opt"><b>Otherwise</b><span></span></div><div class="opt"><b>End If</b><span></span></div></div></div>
+      <p class="sub" style="margin:0">The "Receive … from Nowhere" line at the top can stay as it is.</p></div>
+
+    <div class="group step"><h2><i>3</i>Make the automation</h2>
+      <ol><li>In Shortcuts, tap <b>Automation</b> → <b>+</b>.</li>
+        <li>Choose <b>When I receive a notification from</b> and pick <b>LINE</b>. Leave the words empty: some cards write THB instead of บาท.</li>
+        <li>Turn <b>Automation</b> on (run immediately) and <b>Notify</b> off.</li>
+        <li>Add <b>Run Shortcut</b> and pick <b>Send to ป้าคีน</b>. Tap the <b>›</b> and set <b>Input</b> to <b>Shortcut Input</b>.</li>
+        <li>Card alerts that come by <b>SMS</b> (like UOB): in the same automation, add another trigger, <b>When I receive a notification from</b> → <b>Messages</b>. It shows as <b>or</b>. Tap <b>Add Filter</b> → <b>Title</b> · <b>contains</b> · the sender's name as Messages shows it (for UOB: <b>UOBT</b>), so only that bank's texts are sent. A card's own app works the same way.</li></ol>
+      <div class="mock"><span class="cap">The automation should look like this (the Messages part only if you need it)</span>
+        ${RECEIVE}
+        ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP), 'logo'))} ${tok('+')} ${GO}`,
+          [['<span class="blue">⊕ Add Filter</span>', '']])}
+        <span class="dim" style="text-align:center">or</span>
+        ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('Messages', mini('#34C759', sv(BUBBLE)))} ${tok('+')} ${OPEN}`,
+          [[`<span>${tok('Title')} contains ${tok('UOBT')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', ''],
+           ['Automation', '<span class="tg"></span>'], ['Notify', '<span class="tg off"></span>']])}
+        ${card(`${RUN}<b>Run</b> ${tok('Send to ป้าคีน', mini('#EC6A66', '$'))} ${OPEN}`, [['Input', INPUT]])}</div>
+      <p class="sub" style="margin:0">Texts without an amount, like a login OTP, stop at ป้าคีน and are never recorded.</p></div>
+
+    <div class="group step"><h2><i>4</i>Test it</h2>
+      <ol><li>Open <b>Send to ป้าคีน</b> and tap <b>▶</b>. If iPhone asks to connect, tap <b>Always Allow</b>.</li>
+        <li>Nothing should pop up: nothing was recorded, so ป้าคีน sends back an empty answer and the If stays quiet.</li></ol>
+      <p style="margin:0">After your next payment alert in LINE, you should see this, and the payment appears in รายการ:</p>
+      ${banner('ป้าจดแล้ว: -฿120 ร้านข้าวมันไก่ (อาหาร)')}</div>
+
+    <div class="group step"><h2><i>?</i>If it doesn't work</h2>
+      <ul><li><b>"ลิงก์ไม่ถูกต้อง"</b>: copy your link again (step 1) and paste it into Get Contents of URL.</li>
+        <li><b>"Hello, world!"</b>: Show Notification still has the sample text (step 2, last line).</li>
+        <li><b>A banner that only says "Notification"</b> when you tap the shortcut yourself: that is iPhone showing it ran. It doesn't appear when the automation runs it.</li>
+        <li><b>Can't pick "has any value" or "contains"</b> on Contents of URL: add Get Text from Input first and use its <b>Text</b> (step 2).</li>
+        <li><b>A payment never shows up in รายการ</b>: the automation's Run Shortcut needs Input set to Shortcut Input (step 3).</li>
+        <li><b>Nothing appears</b>: check the automation is switched on in the Automation tab.</li>
+        <li><b>Wrong category</b>: change it once in รายการ; ป้าคีน remembers it for that payee next time.</li></ul>
+      <p class="sub" style="margin:0">Alerts without an amount of money, like a friend's chat, are not passed on and nothing is kept. Making a new link in ตั้งค่า stops the old one.</p></div>
+    </div>`;
   },
 
   report() {
@@ -1061,7 +1218,8 @@ const VIEWS = {
     if (ui.mode === 'month') {
       history = chart('hist', 'bar', months.map(ml), [{label: exp, data: months.map(m => total(inMonth(m), 'expense')), backgroundColor: css('--expense'), borderRadius: 5, maxBarThickness: 16},
         {label: inc, data: months.map(m => total(inMonth(m), 'income')), backgroundColor: css('--income'), borderRadius: 5, maxBarThickness: 16}],
-        {...base, plugins: {...base.plugins, tooltip: {displayColors: false}}});  // no colour squares in the tap label
+        {...base, plugins: {...base.plugins, tooltip: {displayColors: false}},  // no colour squares in the tap label
+          onClick: (ev, hit) => hit.length && U({mode: 'day', month: months[hit[0].index], pie: months[hit[0].index]})});  // a month's bars open it
     } else {
       // one kind per day as bars (the dashed daily-average line is for spending only); expense and income are switched, not mixed,
       // since one payday would flatten every other day
@@ -1170,6 +1328,14 @@ const VIEWS = {
       ${S.channels.length < 10 ? `<button class="row tap link" onclick="addChannel('card')">${I.plus}<span>เพิ่มบัตรเครดิต</span></button>` : ''}
     </div>
     <p class="foot">สลิปที่ส่งมาจะจดเป็นเงินสด ถ้าชื่อบนสลิปไม่ชัดว่าเป็นร้านอะไร ป้าจะถามชื่อรายการ แล้วจัดหมวดให้เองจากชื่อ</p>
+
+    <div class="sect"><span>จดจากแจ้งเตือน LINE (iPhone)</span></div>
+    <div class="group">
+      ${s.notify_key ? `<button class="row tap" onclick="copyNotify()"><span class="grow">คัดลอกลิงก์สำหรับคำสั่งลัด</span>${I.share}</button>` : ''}
+      <button class="row tap" onclick="notifyHelp()"><span class="grow">วิธีตั้งค่า</span>${CHEV}</button>
+      <button class="row tap link" onclick="newNotify()">${s.notify_key ? 'สร้างลิงก์ใหม่' : 'เปิดใช้'}</button>
+    </div>
+    <p class="foot">คำสั่งลัดของ iPhone ส่งแจ้งเตือนจากธนาคารใน LINE มาให้ป้าจดเอง ข้อความที่ไม่มีจำนวนเงินจะไม่ถูกส่งต่อ สร้างลิงก์ใหม่เมื่อไหร่ ลิงก์เก่าจะใช้ไม่ได้</p>
 
     <div class="sect"><span>การแจ้งเตือน</span></div>
     <div class="group"><button class="row tap" onclick="setRemind()"><span class="grow">เตือนจดประจำวัน</span><span class="muted">${s.remind || L('ปิด', 'Off')}</span>${CHEV}</button></div>

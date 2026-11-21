@@ -264,7 +264,7 @@ try {
   assert.equal((await hook({type: 'message', message: {type: 'image', id: '46'}}))[0].quickReply, undefined);
 
   // an answer is offered again next time
-  entries = [{kind: 'expense', amount: 75, category: 'อาหาร', note: 'QCS', party: 'business'}];
+  entries = [{kind: 'expense', amount: 76, category: 'อาหาร', note: 'QCS', party: 'business'}];
   await hook({type: 'message', message: {type: 'image', id: '47'}});
   entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวกะเพรา'}];
   assert.match(JSON.stringify((await say('ข้าวกะเพรา'))[0]), /ข้าวกะเพรา/);
@@ -318,6 +318,50 @@ try {
   // the new period's first day: last period's report arrives once, however many runs there are
   assert.equal(pushes.filter(p => p.to === 'u3' && p.messages[0].type === 'flex').length, 1);
   assert.equal(menus.length, menusBefore);  // the scheduled job leaves up-to-date menus alone
+
+  // notifications from an iPhone Shortcut: a wrong link is refused, a bank alert is recorded once, a chat never reaches the model
+  const hook2 = (link, body) => fetch(link, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(async r => [r.status, await r.text()]);
+  assert.equal((await hook2(`${base}/api/notify?k=u1.00`, {text: 'x'}))[0], 401);
+  const {notify_key} = await api(t1, 'POST', 'notify-key');
+  const link = `${base}/api/notify?k=${notify_key}`;
+  entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', party: 'business'}];
+  geminiParts = null;
+  const alert = 'K PLUS: ชำระเงิน 250.00 บาท ให้ ร้านข้าวมันไก่ 13/11/69 12:30';
+  assert.deepEqual(await hook2(link, {text: alert}), [200, 'ป้าจดแล้ว: -฿250 ร้านข้าวมันไก่ (อาหาร)']);
+  assert.match(JSON.stringify(geminiParts), /ร้านข้าวมันไก่/);
+  assert.equal((await hook2(link, {text: alert}))[1], 'รายการนี้จดไปแล้ว');
+  geminiParts = null;
+  assert.deepEqual(await hook2(link, {text: 'แม่: กินข้าวยัง'}), [200, '']);  // empty: the Shortcut shows nothing
+  assert.equal(geminiParts, null);
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 1);
+  // the slip of a payment its alert already recorded is not added again
+  entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', party: 'business'}];
+  const again2 = await hook({type: 'message', message: {type: 'image', id: '45'}});
+  assert.equal(again2[0].text, 'สลิปนี้ป้าจดไว้แล้วจ้ะ');
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 1);
+  // an unclear payee is asked about in LINE; the next message names it
+  entries = [{kind: 'expense', amount: 60, category: 'อาหาร', note: 'MRKT 2291', party: 'unclear'}];
+  const pushed = pushes.length;
+  assert.match((await hook2(link, {text: 'จ่าย 60.00 บาท MRKT 2291'}))[1], /ป้าจดแล้ว: -฿60 MRKT 2291 .*ป้าถามชื่อใน LINE/);
+  assert.equal(pushes.length, pushed + 1);
+  assert.match(JSON.stringify(pushes.at(-1)), /แจ้งเตือน ฿60 นี้จ่ายให้ “MRKT 2291”.*ใช้ชื่อนี้/);
+  entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวเหนียวหมูปิ้ง'}];
+  await say('ข้าวเหนียวหมูปิ้ง');
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ข้าวเหนียวหมูปิ้ง' && e.amount === 60).length, 1);
+  // a clear shop name is not asked about
+  entries = [{kind: 'expense', amount: 89, category: 'อาหาร', note: 'Starbucks', party: 'business'}];
+  assert.doesNotMatch((await hook2(link, {text: 'จ่าย 89.00 บาท Starbucks'}))[1], /ถามชื่อ/);
+  assert.equal(pushes.length, pushed + 1);
+  // money received is not recorded from an alert, even if the model calls it income
+  entries = [{kind: 'income', amount: 500, category: 'อื่นๆ', note: 'โอนเข้า'}];
+  assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, '']);
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'โอนเข้า').length, 0);
+  // a card's void alert takes the payment out again
+  entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', cancel: true}];
+  assert.equal((await hook2(link, {text: 'VOID 250.00 บาท ร้านข้าวมันไก่'}))[1], 'ป้าลบรายการที่ยกเลิกแล้ว: -฿250 ร้านข้าวมันไก่');
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 0);
+  await api(t1, 'POST', 'notify-key');  // a new link turns the old one off
+  assert.equal((await hook2(link, {text: alert}))[0], 401);
 
   console.log('ok');
 } finally {
