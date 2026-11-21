@@ -331,7 +331,7 @@ try {
   assert.match(JSON.stringify(geminiParts), /ร้านข้าวมันไก่/);
   assert.equal((await hook2(link, {text: alert}))[1], 'รายการนี้จดไปแล้ว');
   geminiParts = null;
-  assert.equal((await hook2(link, {text: 'แม่: กินข้าวยัง'}))[1], 'ไม่ใช่รายการเงิน ไม่ได้จด');
+  assert.deepEqual(await hook2(link, {text: 'แม่: กินข้าวยัง'}), [200, '']);  // empty: the Shortcut shows nothing
   assert.equal(geminiParts, null);
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 1);
   // the slip of a payment its alert already recorded is not added again
@@ -341,7 +341,7 @@ try {
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 1);
   // money received is not recorded from an alert, even if the model calls it income
   entries = [{kind: 'income', amount: 500, category: 'อื่นๆ', note: 'โอนเข้า'}];
-  assert.equal((await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}))[1], 'ไม่ใช่รายจ่าย ไม่ได้จด');
+  assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, '']);
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'โอนเข้า').length, 0);
   // a card's void alert takes the payment out again
   entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', cancel: true}];

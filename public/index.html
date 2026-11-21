@@ -1137,13 +1137,13 @@ const VIEWS = {
         <li>Tap the <b>›</b> on that step. Set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>JSON</b>.</li>
         <li>Tap <b>Add new field</b> → <b>Text</b>. Type <b>text</b> as the key. Tap the value box, then <b>Shortcut Input</b> above the keyboard.</li>
         <li>Search for <b>Show Notification</b> and add it. Tap <b>Hello, world!</b>, delete it and pick <b>Contents of URL</b>.</li>
-        <li>So only recorded payments pop up: search for <b>If</b> and add it. Set it to <b>Contents of URL</b> · <b>does not contain</b> · <b>ไม่ได้จด</b>. Then hold <b>Show notification</b> and drag it between <b>If</b> and <b>Otherwise</b>.</li></ol>
+        <li>So only recorded payments pop up: search for <b>If</b> and add it. Set it to <b>Contents of URL</b> · <b>has any value</b>. Then hold <b>Show notification</b> and drag it between <b>If</b> and <b>Otherwise</b>.</li></ol>
       <div class="mock"><span class="cap">Send to ป้าคีน should look like this</span>
         ${RECEIVE}
         ${card(`${GET}<b>Get contents of</b> ${tok('https://paakeen.p-isarabhakdi.workers.dev/api/notify?k=…your link…')} ${OPEN}`,
           [['Method', tok('POST')], ['Headers', '<span class="dim">›</span>'], ['Request Body', tok('JSON')], ['<span style="color:#FF453A">⊖</span> text', INPUT],
            ['<span><span style="color:#30D158">⊕</span> <span class="dim">Add new field</span></span>', '']])}
-        <div class="act"><div class="hd"><span class="t">${IF}<b>If</b> ${URLOUT} ${tok('does not contain')} ${tok('ไม่ได้จด')} ${GO}</span>${X}</div>
+        <div class="act"><div class="hd"><span class="t">${IF}<b>If</b> ${URLOUT} ${tok('has any value')} ${GO}</span>${X}</div>
           <div class="nest">${card(`${SHOW}<b>Show notification</b> ${URLOUT} ${GO}`)}</div>
           <div class="opt"><b>Otherwise</b><span></span></div><div class="opt"><b>End If</b><span></span></div></div></div>
       <p class="sub" style="margin:0">The "Receive … from Nowhere" line at the top can stay as it is.</p></div>
@@ -1162,7 +1162,7 @@ const VIEWS = {
 
     <div class="group step"><h2><i>4</i>Test it</h2>
       <ol><li>Open <b>Send to ป้าคีน</b> and tap <b>▶</b>. If iPhone asks to connect, tap <b>Always Allow</b>.</li>
-        <li>Nothing should pop up: nothing was recorded, so the If keeps it quiet. (Before adding the If you would see "ไม่ใช่รายการเงิน ไม่ได้จด", which also means the link works.)</li></ol>
+        <li>Nothing should pop up: nothing was recorded, so ป้าคีน sends back an empty answer and the If stays quiet.</li></ol>
       <p style="margin:0">After your next payment alert in LINE, you should see this, and the payment appears in รายการ:</p>
       ${banner('ป้าจดแล้ว: -฿120 ร้านข้าวมันไก่ (อาหาร)')}</div>
 

@@ -924,7 +924,8 @@ async function notify(request, env, url) {
   text = String(text).trim().slice(0, 1000);
   const say = (msg, status = 200) => new Response(msg, {status, headers: {'Content-Type': 'text/plain; charset=utf-8'}});
   // everything else (a friend's chat) never leaves this worker
-  if (!/\d/.test(text) || !/บาท|฿|THB|baht/i.test(text)) return say('ไม่ใช่รายการเงิน ไม่ได้จด');
+  // nothing recorded: an empty answer, so the Shortcut's "If Contents of URL has any value" stays quiet
+  if (!/\d/.test(text) || !/บาท|฿|THB|baht/i.test(text)) return say('');
   // the same alert can come twice; an exact repeat within 10 minutes is skipped (only its hash is kept)
   const hash = hex(await crypto.subtle.digest('SHA-256', enc.encode(text)));
   if (s.last_notify?.hash === hash && Date.now() - s.last_notify.at < 10 * 60e3) return say('รายการนี้จดไปแล้ว');
@@ -939,7 +940,7 @@ async function notify(request, env, url) {
   console.log(JSON.stringify({notify: saved.length}));
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
   return say(saved.map(e => e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
-    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})`).join('\n') || 'ไม่ใช่รายจ่าย ไม่ได้จด');
+    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})`).join('\n'));
 }
 
 export default {
