@@ -339,6 +339,10 @@ try {
   const again2 = await hook({type: 'message', message: {type: 'image', id: '45'}});
   assert.equal(again2[0].text, 'สลิปนี้ป้าจดไว้แล้วจ้ะ');
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 1);
+  // money received is not recorded from an alert, even if the model calls it income
+  entries = [{kind: 'income', amount: 500, category: 'อื่นๆ', note: 'โอนเข้า'}];
+  assert.equal((await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}))[1], 'ไม่ใช่รายจ่าย ไม่ได้จด');
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'โอนเข้า').length, 0);
   // a card's void alert takes the payment out again
   entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', cancel: true}];
   assert.equal((await hook2(link, {text: 'VOID 250.00 บาท ร้านข้าวมันไก่'}))[1], 'ป้าลบรายการที่ยกเลิกแล้ว: -฿250 ร้านข้าวมันไก่');
