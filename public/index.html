@@ -708,12 +708,13 @@ async function copyNotify() {
   catch { ask('ลิงก์สำหรับคำสั่งลัด', [{k: 'link', label: 'ลิงก์', value: notifyLink()}], {ok: 'ปิด'}); }  // no clipboard: show it to copy by hand
 }
 const notifyHelp = () => ask('ตั้งค่าคำสั่งลัด', [], {ok: 'เข้าใจแล้ว', hint: '<span style="display:block;text-align:left;line-height:1.6">' + [
-  '1. กด "คัดลอกลิงก์สำหรับคำสั่งลัด"',
-  '2. แอปคำสั่งลัด → ออโตเมชัน → + → การแจ้งเตือน → เลือกแอป LINE ไม่ต้องใส่คำ (บัตรบางใบเขียน THB ไม่ใช่ บาท) → เรียกใช้ทันที',
-  'แจ้งเตือนบัตรที่มาทางแอปบัตรเองหรือ SMS ทำออโตเมชันเพิ่มอีกอันแบบเดียวกัน เลือกแอปนั้นแทน LINE',
-  '3. เพิ่ม "รับเนื้อหาของ URL" วางลิงก์ เลือกวิธี POST เนื้อหาคำขอแบบ JSON ใส่ช่อง text เป็น "อินพุตคำสั่งลัด"',
-  '4. เพิ่ม "แสดงการแจ้งเตือน" ใส่ "เนื้อหาของ URL" เพื่อดูว่าป้าจดอะไร',
-  'ต้องใช้ iOS 27 ขึ้นไป'].join('<br>') + '</span>'});
+  // in English, with the names the Shortcuts app shows on an English-language iPhone
+  '1. Tap "คัดลอกลิงก์สำหรับคำสั่งลัด" to copy your link.',
+  '2. Shortcuts app → Automation → + → Notification → choose LINE, leave the words empty (some cards write THB instead of บาท) → Run Immediately.',
+  'For card alerts that come from a card app or SMS, make one more automation the same way, choosing that app instead of LINE.',
+  '3. Add "Get Contents of URL": paste the link, Method POST, Request Body JSON, add a text field named text set to Shortcut Input.',
+  '4. Add "Show Notification" with Contents of URL, to see what ป้าคีน recorded.',
+  'Needs iOS 27 or later.'].join('<br>') + '</span>'});
 async function setRemind() { const v = await pickTime(S.settings.remind); if (v !== null) setS({remind: v}); }
 // One dialog for every form: a full sheet when it has an amount or choices, a compact alert otherwise.
 // Resolves to the field values, 'del', or null.
@@ -1045,7 +1046,7 @@ const VIEWS = {
   sum() {
     const c = cycle(ui.sumOff), list = between(c.from, c.to), exp = total(list, 'expense'), inc = total(list, 'income');
     const rows = catRows(list), used = rows.filter(r => r[1]);
-    return `${title('สรุป', S.user.picture ? `<img class="avatar" src="${esc(S.user.picture)}" alt="${esc(S.user.name)}">` : '')}
+    return `${title('สรุป')}
     ${stepper(cycleLabel(c), 'U({sumOff: ui.sumOff - 1})', 'U({sumOff: ui.sumOff + 1})', ui.sumOff >= 0)}
     <div class="group hero">
       <div class="pad"><div class="sub">เหลือเก็บ</div><div class="big num ${inc - exp < 0 ? 'expense' : ''}" style="white-space:normal">${cents(money(inc - exp))}${rateOf(inc, exp) === null ? '' : ` <span class="rate">• ${rateOf(inc, exp)}%</span>`}</div></div>
