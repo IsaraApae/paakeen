@@ -324,7 +324,7 @@ try {
   assert.equal((await hook2(`${base}/api/notify?k=u1.00`, {text: 'x'}))[0], 401);
   const {notify_key} = await api(t1, 'POST', 'notify-key');
   const link = `${base}/api/notify?k=${notify_key}`;
-  entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่'}];
+  entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', party: 'business'}];
   geminiParts = null;
   const alert = 'K PLUS: ชำระเงิน 250.00 บาท ให้ ร้านข้าวมันไก่ 13/11/69 12:30';
   assert.deepEqual(await hook2(link, {text: alert}), [200, 'ป้าจดแล้ว: -฿250 ร้านข้าวมันไก่ (อาหาร)']);
@@ -339,6 +339,19 @@ try {
   const again2 = await hook({type: 'message', message: {type: 'image', id: '45'}});
   assert.equal(again2[0].text, 'สลิปนี้ป้าจดไว้แล้วจ้ะ');
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 1);
+  // an unclear payee is asked about in LINE; the next message names it
+  entries = [{kind: 'expense', amount: 60, category: 'อาหาร', note: 'MRKT 2291', party: 'unclear'}];
+  const pushed = pushes.length;
+  assert.match((await hook2(link, {text: 'จ่าย 60.00 บาท MRKT 2291'}))[1], /ป้าจดแล้ว: -฿60 MRKT 2291 .*ป้าถามชื่อใน LINE/);
+  assert.equal(pushes.length, pushed + 1);
+  assert.match(JSON.stringify(pushes.at(-1)), /แจ้งเตือน ฿60 นี้จ่ายให้ “MRKT 2291”.*ใช้ชื่อนี้/);
+  entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวเหนียวหมูปิ้ง'}];
+  await say('ข้าวเหนียวหมูปิ้ง');
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ข้าวเหนียวหมูปิ้ง' && e.amount === 60).length, 1);
+  // a clear shop name is not asked about
+  entries = [{kind: 'expense', amount: 89, category: 'อาหาร', note: 'Starbucks', party: 'business'}];
+  assert.doesNotMatch((await hook2(link, {text: 'จ่าย 89.00 บาท Starbucks'}))[1], /ถามชื่อ/);
+  assert.equal(pushes.length, pushed + 1);
   // money received is not recorded from an alert, even if the model calls it income
   entries = [{kind: 'income', amount: 500, category: 'อื่นๆ', note: 'โอนเข้า'}];
   assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, '']);

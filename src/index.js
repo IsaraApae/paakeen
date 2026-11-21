@@ -588,7 +588,8 @@ function rememberName(env, u, shown, chosen) {
 
 async function askName(env, origin, u, p) {
   const s = settings(u), id = p.ids[0], last = p.shown && s.names?.[p.shown];
-  const question = p.shown ? `สลิปนี้จ่ายให้ “${p.shown}” ป้าไม่แน่ใจว่าเป็นชื่อร้านไหม รายการนี้คืออะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย` : 'สลิปนี้คือรายการอะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย';
+  const it = p.alert ? `แจ้งเตือน ${money(s, p.amount)} นี้` : 'สลิปนี้';  // a bank alert recorded through the Shortcut, or a slip
+  const question = p.shown ? `${it}จ่ายให้ “${p.shown}” ป้าไม่แน่ใจว่าเป็นชื่อร้านไหม รายการนี้คืออะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย` : `${it}คือรายการอะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย`;
   const quickReply = {items: [
     ...(typeof last === 'string' ? [{type: 'action', action: {type: 'message', label: last.slice(0, 20), text: last}}] : []),
     ...(p.shown ? [{type: 'action', action: {type: 'postback', label: 'ใช้ชื่อนี้', data: `nameok:${id}`, displayText: `ใช้ชื่อ ${p.shown}`.slice(0, 300)}}] : []),
@@ -911,6 +912,16 @@ const NOTIFY = ' This is the text of a phone notification, forwarded automatical
   + '`note` is the payee or payer as shown, otherwise what the alert calls the transaction. '
   + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
   + 'Return an empty list for a declined payment, a statement or bill reminder, cashback, a refund, points or a promotion.';
+// A payment whose payee isn't clearly a shop is asked about in LINE, as a slip's is: the user's next message names it.
+// It is a push message (there is no chat to reply in), so only when unsure; a failed push just leaves the name as shown.
+async function askAboutAlert(env, origin, u, e) {
+  const named = ['business', 'unclear'].includes(e.party) && e.note;
+  if (named && (settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)))) return false;
+  const p = {ids: [e.id], until: Date.now() + 60 * 60e3, alert: true, amount: e.amount, ...(named ? {shown: e.note} : {})};
+  await saveSettings(env, u, {pending: p});
+  return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await askName(env, origin, u, p)]}).then(() => true, err => (console.error(err), false));
+}
+
 async function notify(request, env, url) {
   const key = url.searchParams.get('k') || (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
   const u = request.method === 'POST' && key.includes('.') && await getUser(env, key.slice(0, key.lastIndexOf('.')));
@@ -938,9 +949,11 @@ async function notify(request, env, url) {
     return say(e.status === 429 ? QUOTA : e.status === 503 ? BUSY : FAIL, 503);
   }
   console.log(JSON.stringify({notify: saved.length}));
+  const fresh = saved.filter(e => e.id && !e.dup && !('cancelled' in e));
+  const asked = fresh.length === 1 && await askAboutAlert(env, url.origin, u, fresh[0]);
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
   return say(saved.map(e => e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
-    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})`).join('\n'));
+    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${asked ? ' · ป้าถามชื่อใน LINE นะ' : ''}`).join('\n'));
 }
 
 export default {
