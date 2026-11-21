@@ -325,14 +325,33 @@ dialog .group { background: var(--surface); }
 .step h2 i { font-style: normal; width: 26px; height: 26px; border-radius: 50%; background: var(--red-tint); color: var(--red); display: grid; place-items: center; font-size: 14px; flex: none; }
 .step ol, .step ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; }
 .step b { font-weight: 600; }
-.mock { background: #1C1C1E; color: #F2F2F7; border: .5px solid #FFFFFF2E; border-radius: 18px; padding: 10px; display: grid; gap: 8px; font-size: 14px; line-height: 1.5; }
-.mock .cap { font-size: 12px; color: #A1A1A8; padding: 0 4px; }
-.act { background: #2C2C2E; border-radius: 13px; padding: 10px 12px; }
-.act .opt { display: flex; justify-content: space-between; gap: 8px; border-top: .5px solid #54545899; margin-top: 8px; padding-top: 8px; }
-.ico { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #fff; font-size: 12px; font-style: normal; vertical-align: -5px; margin-right: 6px; }
-.tok { color: #4DA3FF; background: #0A84FF26; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
-.banner { background: #3A3A3CF2; border-radius: 16px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; }
-.banner .ico { grid-row: span 2; width: 34px; height: 34px; border-radius: 9px; font-size: 16px; margin: 0; }
+.mock { background: #000; color: #fff; border: .5px solid #FFFFFF2E; border-radius: 22px; padding: 12px; display: grid; gap: 10px;
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", system-ui, sans-serif; }
+.mock .cap { font-size: 12px; color: #98989F; padding: 0 4px; }
+.mock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; vertical-align: middle; }
+.mock .dim { color: #98989F; }
+.mock .blue { color: #3E9BFF; }
+.act { background: #2C2C2E; border-radius: 20px; overflow: hidden; }
+.act .hd { display: flex; align-items: flex-start; gap: 8px; padding: 11px 12px 11px 14px; }
+.act .hd .t { flex: 1; min-width: 0; line-height: 1.95; }
+.act .x { flex: none; width: 22px; height: 22px; margin-top: 3px; border-radius: 50%; background: #48484A; color: #AEAEB2; display: grid; place-items: center; }
+.act .x svg { width: 10px; height: 10px; stroke-width: 3; }
+.act .opt { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 14px; border-top: .5px solid #48484A; }
+.ico { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: #fff; font-style: normal; vertical-align: middle; margin-right: 4px; }
+.ico svg { width: 15px; height: 15px; }
+.mini { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 4px; color: #fff; font: 700 11px/1 -apple-system, sans-serif; font-style: normal; }
+.mini svg { width: 11px; height: 11px; }
+.tok { color: #3E9BFF; background: #0A84FF24; border-radius: 7px; padding: 1px 6px; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow-wrap: anywhere; }
+.go { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1.6px solid #3E9BFF; border-radius: 50%; color: #3E9BFF; vertical-align: middle; }
+.go svg { width: 12px; height: 12px; stroke-width: 2.6; }
+.tg { width: 46px; height: 28px; border-radius: 14px; background: #34C759; position: relative; flex: none; }
+.tg::after { content: ""; position: absolute; top: 2px; left: 20px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
+.tg.off { background: #39393D; } .tg.off::after { left: 2px; }
+.banner { background: #3A3A3CF0; border-radius: 18px; padding: 11px 13px; display: grid; grid-template-columns: auto 1fr auto; gap: 1px 10px; align-items: center; }
+.banner .ico { grid-row: span 2; width: 38px; height: 38px; border-radius: 9px; margin: 0; }
+.banner .ico svg { width: 24px; height: 24px; }
+.banner small { color: #98989F; font-size: 12px; }
+.banner span { grid-column: 2 / 4; }
 .rep-title { display: flex; align-items: center; gap: 10px; padding-left: 0; }
 .rep-title h1 { min-width: 0; }
 .says { margin: 0; padding: 16px 20px 16px 36px; display: grid; gap: 8px; font-size: 15px; }
@@ -1076,8 +1095,23 @@ const VIEWS = {
 
   // the Shortcut setup, in English only, with drawings of each Shortcuts screen (no screenshots: those would show a private link)
   setup() {
-    const icon = (bg, ch) => `<i class="ico" style="background:${bg}">${ch}</i>`, tok = t => `<span class="tok">${t}</span>`;
-    const GET = icon('#30B158', '↓'), BELL = icon('#FF453A', '🔔'), RUN = icon('linear-gradient(135deg,#5E5CE6,#FF375F)', '◆');
+    // drawn after the real Shortcuts screens: the same icons, tokens, circles and switches
+    const sv = d => `<svg viewBox="0 0 24 24">${d}</svg>`;
+    const TRAY = '<path d="M12 3.5v10M8 9.5l4 4 4-4"/><path d="M4.5 14.5v3A2.5 2.5 0 0 0 7 20h10a2.5 2.5 0 0 0 2.5-2.5v-3"/>';
+    const BELL = '<path d="M12 3.6a5.4 5.4 0 0 0-5.4 5.4v4.3L5 16.6h14l-1.6-3.3V9A5.4 5.4 0 0 0 12 3.6z" fill="currentColor"/><path d="M10 19.2a2 2 0 0 0 4 0"/><circle cx="17.6" cy="5.2" r="3.1" fill="currentColor" stroke="#000" stroke-width="1.4"/>';
+    const LAYERS = '<path d="M12 3v7.5M8.8 7.4 12 10.6l3.2-3.2"/><path d="M4 12.6l8 4 8-4"/><path d="M4 16.6l8 4 8-4"/>';
+    const LINEP = '<path d="M12 4.5c-4.6 0-8 2.8-8 6.3 0 3.1 2.7 5.6 6.3 6.2l-.5 2.6 3.6-2.5c3.7-.3 6.6-2.9 6.6-6.3 0-3.5-3.4-6.3-8-6.3z" fill="currentColor" stroke="none"/>';
+    const DIAMONDS = '<rect x="7" y="2.6" width="10" height="10" rx="2.6" transform="rotate(45 12 7.6)" fill="currentColor" fill-opacity=".55" stroke="none"/><rect x="7" y="9.4" width="10" height="10" rx="2.6" transform="rotate(45 12 14.4)" fill="currentColor" stroke="none"/>';
+    const sq = (bg, d) => `<i class="ico" style="background:${bg}">${sv(d)}</i>`, mini = (bg, inner) => `<i class="mini" style="background:${bg}">${inner}</i>`;
+    const SCUT = 'linear-gradient(140deg,#3C8CFF,#A855F7 55%,#FF4F7B)';
+    const GET = sq('#32B150', TRAY), SHOW = sq('#FF453A', BELL), RUN = sq(SCUT, DIAMONDS);
+    const tok = (t, pre = '') => `<span class="tok">${pre}${t}</span>`;
+    const INPUT = tok('Shortcut Input', sv(LAYERS)), URLOUT = tok('Contents of URL', mini('#32B150', sv(TRAY)));
+    const GO = `<span class="go">${sv('<path d="M10 7.5l4.5 4.5-4.5 4.5"/>')}</span>`, OPEN = `<span class="go">${sv('<path d="M7.5 10l4.5 4.5 4.5-4.5"/>')}</span>`;
+    const card = (head, opts = [], x = true) => `<div class="act"><div class="hd"><span class="t">${head}</span>${x ? `<span class="x">${sv('<path d="M7 7l10 10M17 7 7 17"/>')}</span>` : ''}</div>
+      ${opts.map(([k, v]) => `<div class="opt"><span>${k}</span>${v}</div>`).join('')}</div>`;
+    const RECEIVE = card(`<span class="blue">${sv(LAYERS)}</span> <b>Receive</b> ${tok('Apps and 18 more')} <b>from</b> ${tok('Nowhere')}<br><span class="dim">If there's no input:</span> ${tok('Continue')}`, [], false);
+    const banner = text => `<div class="mock"><div class="banner">${RUN}<b>Send to ป้าคีน</b><small>now</small><span>${text}</span></div></div>`;
     const linkBtn = S.settings.notify_key ? `<button class="pill tint wide" onclick="copyNotify()">Copy my link</button>`
       : `<button class="pill tint wide" onclick="newNotify()">Turn on and copy my link</button>`;
     return `<div class="title rep-title"><button class="ib" onclick="go('set')" aria-label="Back">${I.chevL}</button><h1>Auto-record setup</h1></div>
@@ -1093,11 +1127,12 @@ const VIEWS = {
         <li>Tap the <b>›</b> on that step. Set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>JSON</b>.</li>
         <li>Tap <b>Add new field</b> → <b>Text</b>. Type <b>text</b> as the key. Tap the value box, then <b>Shortcut Input</b> above the keyboard.</li>
         <li>Search for <b>Show Notification</b> and add it. Tap <b>Hello, world!</b>, delete it and pick <b>Contents of URL</b>.</li></ol>
-      <div class="mock"><span class="cap">It should look like this</span>
-        <div class="act">${GET}<b>Get contents of</b> ${tok('https://paakeen…/api/notify?k=…')}
-          <div class="opt"><span>Method</span>${tok('POST')}</div><div class="opt"><span>Request Body</span>${tok('JSON')}</div>
-          <div class="opt"><span>text</span>${tok('Shortcut Input')}</div></div>
-        <div class="act">${BELL}<b>Show notification</b> ${tok('Contents of URL')}</div></div>
+      <div class="mock"><span class="cap">Send to ป้าคีน should look like this</span>
+        ${RECEIVE}
+        ${card(`${GET}<b>Get contents of</b> ${tok('https://paakeen.p-isarabhakdi.workers.dev/api/notify?k=…your link…')} ${OPEN}`,
+          [['Method', tok('POST')], ['Headers', '<span class="dim">›</span>'], ['Request Body', tok('JSON')], ['<span style="color:#FF453A">⊖</span> text', INPUT],
+           ['<span><span style="color:#30D158">⊕</span> <span class="dim">Add new field</span></span>', '']])}
+        ${card(`${SHOW}<b>Show notification</b> ${URLOUT} ${GO}`)}</div>
       <p class="sub" style="margin:0">The "Receive … from Nowhere" line at the top can stay as it is.</p></div>
 
     <div class="group step"><h2><i>3</i>Make the automation</h2>
@@ -1105,18 +1140,19 @@ const VIEWS = {
         <li>Choose <b>When I receive a notification from</b> and pick <b>LINE</b>. Leave the words empty: some cards write THB instead of บาท.</li>
         <li>Turn <b>Automation</b> on (run immediately) and <b>Notify</b> off.</li>
         <li>Add <b>Run Shortcut</b> and pick <b>Send to ป้าคีน</b>. Tap the <b>›</b> and set <b>Input</b> to <b>Shortcut Input</b>.</li></ol>
-      <div class="mock"><span class="cap">It should look like this</span>
-        <div class="act">${BELL}<b>When I receive a notification from</b> ${tok('LINE')}
-          <div class="opt"><span>Automation</span><span style="color:#30D158">On</span></div><div class="opt"><span>Notify</span><span style="color:#A1A1A8">Off</span></div></div>
-        <div class="act">${RUN}<b>Run</b> ${tok('Send to ป้าคีน')}<div class="opt"><span>Input</span>${tok('Shortcut Input')}</div></div></div>
+      <div class="mock"><span class="cap">The automation should look like this</span>
+        ${RECEIVE}
+        ${card(`<span style="color:#FF453A">${sv(BELL.replace('stroke="#000"', 'stroke="#2C2C2E"'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP)))} ${tok('+')} ${OPEN}`,
+          [['<span class="blue">⊕ Add Filter</span>', ''], ['Automation', '<span class="tg"></span>'], ['Notify', '<span class="tg off"></span>']])}
+        ${card(`${RUN}<b>Run</b> ${tok('Send to ป้าคีน', mini('#F05A57', '$'))} ${OPEN}`, [['Input', INPUT]])}</div>
       <p class="sub" style="margin:0">Card alerts that come from a card app or by SMS: make one more automation the same way and pick that app instead of LINE.</p></div>
 
     <div class="group step"><h2><i>4</i>Test it</h2>
       <ol><li>Open <b>Send to ป้าคีน</b> and tap <b>▶</b>. If iPhone asks to connect, tap <b>Always Allow</b>.</li>
         <li>You should see this. It means the link works, and nothing was recorded:</li></ol>
-      <div class="mock"><div class="banner">${RUN}<b>Send to ป้าคีน</b><span>ไม่ใช่รายการเงิน ไม่ได้จด</span></div></div>
+      ${banner('ไม่ใช่รายการเงิน ไม่ได้จด')}
       <p style="margin:0">After your next payment alert in LINE, you should see this, and the payment appears in รายการ:</p>
-      <div class="mock"><div class="banner">${RUN}<b>Send to ป้าคีน</b><span>ป้าจดแล้ว: -฿120 ร้านข้าวมันไก่ (อาหาร)</span></div></div></div>
+      ${banner('ป้าจดแล้ว: -฿120 ร้านข้าวมันไก่ (อาหาร)')}</div>
 
     <div class="group step"><h2><i>?</i>If it doesn't work</h2>
       <ul><li><b>"ลิงก์ไม่ถูกต้อง"</b>: copy your link again (step 1) and paste it into Get Contents of URL.</li>
