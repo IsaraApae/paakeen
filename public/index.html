@@ -1127,7 +1127,7 @@ const VIEWS = {
     const linkBtn = S.settings.notify_key ? `<button class="pill tint wide" onclick="copyNotify()">Copy my link</button>`
       : `<button class="pill tint wide" onclick="newNotify()">Turn on and copy my link</button>`;
     return `<div class="title rep-title"><button class="ib" onclick="go('set')" aria-label="Back">${I.chevL}</button><h1>Auto-record setup</h1></div>
-    <div class="group step"><p style="margin:0">When your bank or card sends a payment alert in LINE, your iPhone passes it to ป้าคีน, which records it as an expense. Money you receive is not recorded.</p>
+    <div class="group step"><p style="margin:0">When your bank or card sends a payment alert in LINE, your iPhone passes it to ป้าคีน, which records it as an expense. Money you receive is not recorded. If it isn't sure of the name or category, or the payment is over ฿500 (it may have covered friends too), ป้าคีน asks you in LINE.</p>
       <p class="sub" style="margin:0">You set this up once in the <b>Shortcuts</b> app, in about 3 minutes. Needs iOS 27 or later.</p></div>
     <div class="steps">
     <div class="group step"><h2><i>1</i>Copy your link</h2>

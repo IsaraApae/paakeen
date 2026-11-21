@@ -595,9 +595,13 @@ async function askName(env, origin, u, p) {
     ...(p.shown ? [{type: 'action', action: {type: 'postback', label: 'ใช้ชื่อนี้', data: `nameok:${id}`, displayText: `ใช้ชื่อ ${p.shown}`.slice(0, 300)}}] : []),
     skip(`nameskip:${id}`),
   ]};
+  return askCard(env, origin, u, id, question, quickReply);
+}
+// A question about one entry: its amount as the saved card will show it, the hamster asking, then the question.
+async function askCard(env, origin, u, id, question, quickReply) {
+  const s = settings(u);
   if (s.confirm === 'text') return {...textMsg(question), quickReply};
   const e = await q(env, 'SELECT amount, kind FROM entries WHERE id = ? AND user_id = ?', id, u.id).first();
-  // the slip's amount as the saved card will show it, the hamster asking, then the question
   return {...flex(question, [{type: 'bubble', size: 'kilo', body: {type: 'box', layout: 'vertical', spacing: 'lg', paddingAll: '20px', backgroundColor: '#FFFFFF', contents: [
     {type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', contents: [
       {type: 'box', layout: 'vertical', flex: 1, contents: [bigAmount(s, e?.amount ?? 0, e?.kind === 'income' ? GREEN : RED, 'xxl')]},
@@ -607,11 +611,49 @@ async function askName(env, origin, u, p) {
   ]}}]), quickReply};
 }
 
-// Ask the pending slip's name, or once it is named (or skipped), close the follow-up and show the saved card.
+// A bank alert over SHARE_FROM may have paid for friends too: ask how much was the user's own, with quick splits.
+const SHARE_FROM = 500;
+function askShare(env, origin, u, p) {
+  const s = settings(u), id = p.ids[0], all = p.amount, split = n => Math.round(all / n * 100) / 100;
+  const question = `แจ้งเตือน ${money(s, all)} นี้ เป็นส่วนของหลานเท่าไหร่จ๊ะ? เผื่อจ่ายให้เพื่อนด้วย พิมพ์จำนวนเงินมาได้เลย หรือเลือกด้านล่าง`;
+  const btn = (label, data, shown) => ({type: 'action', action: {type: 'postback', label, data, displayText: shown}});
+  return askCard(env, origin, u, id, question, {items: [
+    btn('จ่ายเองทั้งหมด', `share:${id}:1`, `ส่วนของฉัน ${money(s, all)}`),
+    ...[2, 3, 4].map(n => btn(`หาร ${n} (${money(s, split(n))})`.slice(0, 20), `share:${id}:${n}`, `หาร ${n} ส่วนของฉัน ${money(s, split(n))}`)),
+  ]});
+}
+// The user's share: an amount they typed, or the alert's amount split n ways. Only ever lowers it.
+async function setShare(env, u, p, amount) {
+  if (amount > 0 && amount < p.amount) await q(env, 'UPDATE entries SET amount = ? WHERE id = ? AND user_id = ?', Math.round(amount * 100) / 100, p.ids[0], u.id).run();
+}
+
+// Unsure of a category means it landed in อื่นๆ (or none): then the user picks one rather than it staying there.
+async function unsureCategory(env, u, id) {
+  const c = await q(env, 'SELECT c.name FROM entries e LEFT JOIN categories c ON c.id = e.category_id WHERE e.id = ? AND e.user_id = ?', id, u.id).first();
+  return !!c && (!c.name || c.name === 'อื่นๆ');
+}
+async function askCategory(env, origin, u, p) {
+  const id = p.ids[0], e = await q(env, 'SELECT kind, note FROM entries WHERE id = ? AND user_id = ?', id, u.id).first();
+  const cats = await all(env, "SELECT id, name, emoji FROM categories WHERE user_id = ? AND kind = ? AND name != 'อื่นๆ' ORDER BY sort, id", u.id, e?.kind || 'expense');
+  const question = `“${e?.note || 'รายการนี้'}” ควรอยู่หมวดไหนจ๊ะ? ป้าไม่แน่ใจ เลือกด้านล่างหรือพิมพ์ชื่อหมวดมาได้เลย`;
+  return askCard(env, origin, u, id, question, {items: [  // LINE shows at most 13 quick replies
+    ...cats.slice(0, 12).map(c => ({type: 'action', action: {type: 'postback', label: `${catEmoji(c.name, c.emoji)} ${c.name}`.trim().slice(0, 20), data: `cat:${id}:${c.id}`, displayText: c.name}})),
+    skip(`catskip:${id}`),
+  ]});
+}
+async function setCategory(env, u, p, catId) {
+  const c = await q(env, 'SELECT id FROM categories WHERE id = ? AND user_id = ?', catId, u.id).first();
+  if (c) await q(env, 'UPDATE entries SET category_id = ?, memory = 0 WHERE id = ? AND user_id = ?', c.id, p.ids[0], u.id).run();  // later entries with this name follow it
+  return !!c;
+}
+
+// Ask the pending entry's name, then (a big bank alert) the user's share, then its category if it landed in อื่นๆ; once
+// all are answered or skipped, close the follow-up and show the saved card.
 async function nextStep(env, origin, u, done) {
   const p = {...settings(u).pending, ...done}, id = p.ids[0];
-  await saveSettings(env, u, {pending: p.named ? null : p});
-  return p.named ? entryCard(env, origin, u, id) : askName(env, origin, u, p);
+  const step = !p.named ? 'name' : p.share && !p.shared ? 'share' : !p.filed && await unsureCategory(env, u, id) ? 'category' : null;
+  await saveSettings(env, u, {pending: step ? p : null});
+  return step === 'name' ? askName(env, origin, u, p) : step === 'share' ? askShare(env, origin, u, p) : step === 'category' ? askCategory(env, origin, u, p) : entryCard(env, origin, u, id);
 }
 
 // File a named slip by its name: a name used before keeps that category (when memory is on), otherwise the fast model
@@ -645,6 +687,15 @@ async function postback(env, origin, u, data) {
     if (slip.shown) await rememberName(env, u, slip.shown, slip.shown);
     return nextStep(env, origin, u, {named: true});
   }
+  if (action === 'share' && mine && slip.share && /^[1-4]$/.test(b)) {
+    await setShare(env, u, slip, slip.amount / +b);
+    return nextStep(env, origin, u, {shared: true});
+  }
+  if (action === 'cat' && mine && /^\d+$/.test(b)) {
+    await setCategory(env, u, slip, +b);
+    return nextStep(env, origin, u, {filed: true});
+  }
+  if (action === 'catskip' && mine) return nextStep(env, origin, u, {filed: true});
   if (action === 'chskip' && /^\d+(,\d+)*$/.test(a)) return 'ได้จ้ะ ไม่ระบุช่องทางนะ';
   if (action === 'ch' && /^\d+(,\d+)*$/.test(a) && /^\d+$/.test(b)) {
     const chan = await q(env, 'SELECT name FROM channels WHERE id = ? AND user_id = ?', +b, u.id).first();
@@ -703,8 +754,18 @@ async function handleEvent(env, origin, ev, later = []) {
       const last = await q(env, 'SELECT id FROM entries WHERE user_id = ? ORDER BY id DESC LIMIT 1', u.id).first();
       return [textMsg(last ? await postback(env, origin, u, `del:${last.id}`) : 'ไม่มีรายการให้ลบจ้ะ')];
     }
-    // right after a slip, the next message is its name
+    // right after a slip, the next message is its name; after a big bank alert's name, it is the user's share
     const slip = pendingOf(u);
+    if (slip && slip.named && !(slip.share && !slip.shared) && !slip.filed) {  // the category question: a typed category name
+      const c = await q(env, 'SELECT id FROM categories WHERE user_id = ? AND name = ? COLLATE NOCASE', u.id, text).first();
+      if (c && await setCategory(env, u, slip, c.id)) return [await nextStep(env, origin, u, {filed: true})];
+    }
+    if (slip && slip.named && slip.share && !slip.shared) {
+      const n = Number(text.replace(/[,฿\s]|บาท/g, ''));
+      if (!(n > 0)) return [{...textMsg(`พิมพ์เป็นตัวเลขนะจ๊ะ เช่น ${Math.round(slip.amount / 2)} หรือเลือกด้านล่าง`), quickReply: (await askShare(env, origin, u, slip)).quickReply}];
+      await setShare(env, u, slip, n);
+      return [await nextStep(env, origin, u, {shared: true})];
+    }
     if (slip && !slip.named) {
       await env.DB.batch(slip.ids.map(id => q(env, 'UPDATE entries SET note = ? WHERE id = ? AND user_id = ?', text.slice(0, 100), id, u.id)));
       await categoriseByName(env, u, slip.ids[0], text.slice(0, 100));
@@ -913,13 +974,17 @@ const NOTIFY = ' This is the text of a phone notification, forwarded automatical
   + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
   + 'Return an empty list for a declined payment, a statement or bill reminder, cashback, a refund, points or a promotion.';
 // A payment whose payee isn't clearly a shop is asked about in LINE, as a slip's is: the user's next message names it.
+// One over SHARE_FROM is also asked how much of it was the user's own, and one that landed in อื่นๆ its category.
 // It is a push message (there is no chat to reply in), so only when unsure; a failed push just leaves the name as shown.
 async function askAboutAlert(env, origin, u, e) {
   const named = ['business', 'unclear'].includes(e.party) && e.note;
-  if (named && (settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)))) return false;
-  const p = {ids: [e.id], until: Date.now() + 60 * 60e3, alert: true, amount: e.amount, ...(named ? {shown: e.note} : {})};
+  const clear = named && (settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)));
+  const share = e.kind === 'expense' && e.amount > SHARE_FROM;
+  if (clear && !share && !await unsureCategory(env, u, e.id)) return false;
+  const p = {ids: [e.id], until: Date.now() + 60 * 60e3, alert: true, amount: e.amount, named: clear, share, ...(named ? {shown: e.note} : {})};
   await saveSettings(env, u, {pending: p});
-  return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await askName(env, origin, u, p)]}).then(() => true, err => (console.error(err), false));
+  const ask = await nextStep(env, origin, u, {});  // the first open question: name, share or category
+  return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [ask]}).then(() => true, err => (console.error(err), false));
 }
 
 async function notify(request, env, url) {
@@ -953,7 +1018,7 @@ async function notify(request, env, url) {
   const asked = fresh.length === 1 && await askAboutAlert(env, url.origin, u, fresh[0]);
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
   return say(saved.map(e => e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
-    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${asked ? ' · ป้าถามชื่อใน LINE นะ' : ''}`).join('\n'));
+    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${asked ? ' · ป้าถามต่อใน LINE นะ' : ''}`).join('\n'));
 }
 
 export default {
