@@ -1158,17 +1158,20 @@ const VIEWS = {
         <li>Another bank or card in LINE (for example <b>KTC</b>): add one more trigger, <b>LINE</b> with its own Title filter. It shows as <b>or</b>.</li>
         <li>Turn <b>Automation</b> on (run immediately) and <b>Notify</b> off.</li>
         <li>Add <b>Run Shortcut</b> and pick <b>Send to ป้าคีน</b>. Tap the <b>›</b> and set <b>Input</b> to <b>Shortcut Input</b>.</li>
-        <li>Card alerts that come by <b>SMS</b> (like UOB): in the same automation, add another trigger, <b>When I receive a notification from</b> → <b>Messages</b>. It shows as <b>or</b>. Tap <b>Add Filter</b> → <b>Title</b> · <b>contains</b> · the sender's name as Messages shows it (for UOB: <b>UOBT</b>), so only that bank's texts are sent. A card's own app works the same way.</li></ol>
+        <li>Card alerts that come by <b>SMS</b> (like UOB): in the same automation, add another trigger, <b>When I receive a notification from</b> → <b>Messages</b>. It shows as <b>or</b>. Tap <b>Add Filter</b> → <b>Title</b> · <b>contains</b> · the sender's name as Messages shows it (for UOB: <b>UOBT</b>), so only that bank's texts are sent. A card's own app works the same way.</li>
+        <li>On each trigger, <b>Add Filter</b> once more → <b>Message</b> · <b>contains</b> · the words its <b>spending</b> alerts use, so money coming in and other notices don't even start it. For example: KBank Live <b>รายการโอน/ถอน</b>, KTC <b>รายการเงินเข้า</b> (KTC's heading for a card payment), UOB's SMS <b>มีการใช้</b>. If asked <b>All</b> or <b>Any</b>, choose <b>All</b>.</li></ol>
       <div class="mock"><span class="cap">The automation should look like this (one trigger per bank or card; Messages only for SMS alerts)</span>
         ${RECEIVE}
         ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP), 'logo'))} ${tok('+')} ${GO}`,
-          [[`<span>${tok('Title')} contains ${tok('KBank')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', '']])}
+          [[`<span>${tok('Title')} contains ${tok('KBank Live')}</span>`, '<span class="blue">⊖</span>'], [`<span>${tok('Message')} contains ${tok('รายการโอน/ถอน')}</span>`, '<span class="blue">⊖</span>'],
+           ['<span class="blue">⊕ Add Filter</span>', '']])}
         <span class="dim" style="text-align:center">or</span>
         ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP), 'logo'))} ${tok('+')} ${GO}`,
-          [[`<span>${tok('Title')} contains ${tok('KTC')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', '']])}
+          [[`<span>${tok('Title')} contains ${tok('KTC')}</span>`, '<span class="blue">⊖</span>'], [`<span>${tok('Message')} contains ${tok('รายการเงินเข้า')}</span>`, '<span class="blue">⊖</span>'],
+           ['<span class="blue">⊕ Add Filter</span>', '']])}
         <span class="dim" style="text-align:center">or</span>
         ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('Messages', mini('#34C759', sv(BUBBLE)))} ${tok('+')} ${OPEN}`,
-          [[`<span>${tok('Title')} contains ${tok('UOBT')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', ''],
+          [[`<span>${tok('Title')} contains ${tok('UOBT')}</span>`, '<span class="blue">⊖</span>'], [`<span>${tok('Message')} contains ${tok('มีการใช้')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', ''],
            ['Automation', '<span class="tg"></span>'], ['Notify', '<span class="tg off"></span>']])}
         ${card(`${RUN}<b>Run</b> ${tok('Send to ป้าคีน', mini('#EC6A66', '$'))} ${OPEN}`, [['Input', INPUT]])}</div>
       <p class="sub" style="margin:0">Texts without an amount, like a login OTP, stop at ป้าคีน and are never recorded.</p></div>
@@ -1185,7 +1188,7 @@ const VIEWS = {
         <li><b>A banner that only says "Notification"</b> when you tap the shortcut yourself: that is iPhone showing it ran. It doesn't appear when the automation runs it.</li>
         <li><b>Can't pick "has any value" or "contains"</b> on Contents of URL: add Get Text from Input first and use its <b>Text</b> (step 2).</li>
         <li><b>A payment never shows up in รายการ</b>: the automation's Run Shortcut needs Input set to Shortcut Input (step 3).</li>
-        <li><b>Nothing appears</b>: check the automation is switched on in the Automation tab, and that each Title filter matches the title of that bank's notifications exactly as it shows.</li>
+        <li><b>Nothing appears</b>: check the automation is switched on in the Automation tab, and that each Title and Message filter matches that bank's notifications exactly as they show (a payment whose wording differs from the Message filter won't start it).</li>
         <li><b>A "Notification" banner for every LINE message</b>: a trigger has no Title filter, so every chat starts the automation and iPhone announces it. Add the filter (step 3).</li>
         <li><b>Wrong category</b>: change it once in รายการ; ป้าคีน remembers it for that payee next time.</li></ul>
       <p class="sub" style="margin:0">Alerts without an amount of money, like a friend's chat, are not passed on and nothing is kept. Making a new link in ตั้งค่า stops the old one.</p></div>
