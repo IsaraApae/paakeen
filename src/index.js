@@ -272,10 +272,12 @@ async function gemini(env, parts, system) {
     const finish = (ok, v) => { if (done) return; done = true; stop.abort(); ok ? resolve(v) : reject(v); };
     const next = () => {
       if (done || started >= models.length) return;
-      const model = models[started++], timer = setTimeout(next, HEDGE);
+      const model = models[started++], timer = setTimeout(next, HEDGE), t0 = Date.now();
       running++;
       ask(model).then(v => finish(true, v), e => {
         if (e.name === 'TimeoutError' || e.name === 'AbortError') e.status = 503;  // a hung model counts as busy
+        // every failed try is logged (the stored logs keep a few days), not only the one that answers
+        if (!done) console.log(JSON.stringify({gemini: model, failed: e.name === 'TimeoutError' ? 'timeout' : e.status ?? e.message, ms: Date.now() - t0, media: !easy}));
         error = e;
         if (![404, 429, 503].includes(e.status)) return finish(false, e);
         clearTimeout(timer);
@@ -338,7 +340,8 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
   const found = await gemini(env, parts, system);
   for (const e of found) {
     const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind, note = (typed ? snap(String(e?.note ?? ''), typed) : String(e?.note ?? '')).slice(0, 100);
-    if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12) || (spendOnly && kind !== 'expense')) continue;
+    if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12)) continue;
+    if (spendOnly && kind !== 'expense') { saved.push({received: true, kind, amount}); continue; }  // reported, never recorded
     const ts = validTs(e.datetime) ? e.datetime : now;
     if (auto && e.cancel && kind === 'expense') {  // a voided or cancelled payment takes out the matching entry from the last day
       const hit = await q(env, "SELECT id, note FROM entries WHERE user_id = ? AND kind = 'expense' AND amount = ? AND ts >= ? ORDER BY ts DESC, id DESC LIMIT 1",
@@ -849,6 +852,7 @@ async function remind(env) {
     // a new menu version reaches every user within one run, without waiting for them to message the bot
     const origin = settings(u).menu_origin || env.APP_ORIGIN;
     if (origin) await ensureMenu(env, origin, u).catch(console.error);
+    if (origin && settings(u).alert_retry?.length) await retryAlerts(env, origin, u).catch(console.error);
     const s = settings(u), now = localNow(s), today = now.slice(0, 10);
     // the first days of a new period (in case a run is missed), at the reminder time or else 09:00: last period's report
     const c = cycleOf(s);
@@ -969,7 +973,8 @@ async function api(env, u, method, path, body, state) {
 // alert of money spent and ignores the rest, money received included. The answer is plain text for the Shortcut to show as a notification.
 const NOTIFY = ' This is the text of a phone notification, forwarded automatically. Record it only if it is a bank, credit card '
   + 'or e-wallet alert about money the user spent or sent out (a payment, card charge, transfer out or top-up); '
-  + 'return an empty list for money received and for anything else, such as a chat, a promotion, a balance-only message or an OTP. '
+  + 'money received (เงินเข้า, a transfer in) is returned with kind \'income\' so it can be reported, and is not recorded; '
+  + 'return an empty list for anything else, such as a chat, a promotion, a balance-only message or an OTP. '
   + '`note` is the payee or payer as shown, otherwise what the alert calls the transaction. '
   + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
   + 'Return an empty list for a declined payment, a statement or bill reminder, cashback, a refund, points or a promotion.';
@@ -985,6 +990,33 @@ async function askAboutAlert(env, origin, u, e) {
   await saveSettings(env, u, {pending: p});
   const ask = await nextStep(env, origin, u, {});  // the first open question: name, share or category
   return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [ask]}).then(() => true, err => (console.error(err), false));
+}
+
+// Record one alert's text and ask about it in LINE if needed. Throws when the model fails.
+async function recordAlert(env, origin, u, text) {
+  const saved = await record(env, u, [{text}], ...await readLists(env, u.id), {extra: NOTIFY, auto: true, spendOnly: true});
+  console.log(JSON.stringify({notify: saved.length}));
+  const fresh = saved.filter(e => e.id && !e.dup && !('cancelled' in e));
+  return {saved, asked: fresh.length === 1 && await askAboutAlert(env, origin, u, fresh[0])};
+}
+// Alerts the model was too busy for, tried again on each scheduled run; given up after 6 hours. A payment recorded this
+// way is told in LINE (the Shortcut showed "try again" at the time), unless a question about it already went.
+async function retryAlerts(env, origin, u) {
+  const left = [];
+  for (const a of settings(u).alert_retry) {
+    try {
+      const {saved, asked} = await recordAlert(env, origin, u, a.text);
+      const done = saved.filter(e => e.id && !e.dup && !('cancelled' in e));
+      if (done.length && !asked) {
+        await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('ป้าจดแจ้งเตือนที่ค้างไว้ให้แล้วจ้ะ\n'
+          + done.map(e => `-${money(settings(u), e.amount)} ${e.note} (${e.category})`).join('\n'))]}).catch(console.error);
+      }
+    } catch (e) {
+      console.error(e);
+      if (Date.now() - a.at < 6 * 3600e3) left.push(a);
+    }
+  }
+  await saveSettings(env, u, {alert_retry: left});
 }
 
 async function notify(request, env, url) {
@@ -1006,18 +1038,19 @@ async function notify(request, env, url) {
   const hash = hex(await crypto.subtle.digest('SHA-256', enc.encode(text)));
   if (s.last_notify?.hash === hash && Date.now() - s.last_notify.at < 10 * 60e3) return say('รายการนี้จดไปแล้ว');
   await saveSettings(env, u, {last_notify: {hash, at: Date.now()}});
-  let saved;
+  let saved, asked;
   try {
-    saved = await record(env, u, [{text}], ...await readLists(env, u.id), {extra: NOTIFY, auto: true, spendOnly: true});
+    ({saved, asked} = await recordAlert(env, url.origin, u, text));
   } catch (e) {
     console.error(e);
-    return say(e.status === 429 ? QUOTA : e.status === 503 ? BUSY : FAIL, 503);
+    if (![429, 503].includes(e.status)) return say(FAIL, 503);
+    // the model is busy: the alert is kept and the scheduled job tries it again, so the payment isn't lost
+    await saveSettings(env, u, {alert_retry: [...(s.alert_retry || []), {text, at: Date.now()}].slice(-10)});
+    return say('ตอนนี้ AI ไม่ว่างจ้ะ ป้าเก็บแจ้งเตือนนี้ไว้ จะลองจดให้อีกครั้งในไม่กี่นาทีนะ');
   }
-  console.log(JSON.stringify({notify: saved.length}));
-  const fresh = saved.filter(e => e.id && !e.dup && !('cancelled' in e));
-  const asked = fresh.length === 1 && await askAboutAlert(env, url.origin, u, fresh[0]);
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
-  return say(saved.map(e => e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
+  // money received is only named ("เงินเข้า ฿500"), never recorded: just money out is
+  return say(saved.map(e => e.received ? `เงินเข้า ${money(s, e.amount)}` : e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
     : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${asked ? ' · ป้าถามต่อใน LINE นะ' : ''}`).join('\n'));
 }
 

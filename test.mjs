@@ -16,7 +16,7 @@ catch { throw new Error('wrangler is not installed: run npm install first'); }
 
 const MOCK = 8798, PORT = 8799, base = `http://127.0.0.1:${PORT}`, mockUrl = `http://127.0.0.1:${MOCK}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-let entries = [], geminiParts, geminiModel, geminiThinking, loadings = 0;
+let entries = [], geminiParts, geminiModel, geminiThinking, loadings = 0, geminiDown = false;
 const replies = [], pushes = [], menus = [], dropped = [];
 
 const mock = createServer(async (req, res) => {
@@ -34,6 +34,7 @@ const mock = createServer(async (req, res) => {
   if (req.url.endsWith('/content')) return res.writeHead(200, {'Content-Type': 'image/jpeg'}).end(Buffer.from([1, 2, 3]));
   if (req.url.includes('busy-model')) return res.writeHead(503).end('overloaded');  // forces the fallback model
   if (req.url.includes('slow-model')) { await sleep(8000); return res.writeHead(503).end('too late'); }  // hangs: the next model is started alongside
+  if (geminiDown && req.url.includes(':generateContent')) return res.writeHead(503).end('overloaded');  // every model busy
   if (req.url.includes(':generateContent')) {
     const {contents, generationConfig} = JSON.parse(body);
     // ok-model stands in for a model that doesn't accept the thinking setting
@@ -378,9 +379,22 @@ try {
   state = await api(t1, 'GET', 'state');
   assert.equal(cats[state.entries.find(e => e.note === 'Lazada').category_id], 'ชอปปิ้ง');
   assert.equal(state.settings.pending, null);
+  // every model busy: the alert is kept, and the next scheduled run records it and says so in LINE
+  geminiDown = true;
+  entries = [{kind: 'expense', amount: 45, category: 'เครื่องดื่ม', note: 'Cafe Amazon', party: 'business'}];
+  assert.match((await hook2(link, {text: 'จ่าย 45.00 บาท Cafe Amazon'}))[1], /ป้าเก็บแจ้งเตือนนี้ไว้/);
+  assert.equal((await api(t1, 'GET', 'state')).settings.alert_retry.length, 1);
+  geminiDown = false;
+  const before = pushes.length;
+  await fetch(base + '/__scheduled');
+  for (let i = 0; i < 50 && !pushes.slice(before).some(p => p.to === 'u1'); i++) await sleep(100);
+  assert.match(JSON.stringify(pushes.slice(before).find(p => p.to === 'u1')), /ป้าจดแจ้งเตือนที่ค้างไว้ให้แล้ว.*Cafe Amazon/);
+  state = await api(t1, 'GET', 'state');
+  assert.equal(state.entries.filter(e => e.note === 'Cafe Amazon').length, 1);
+  assert.deepEqual(state.settings.alert_retry, []);
   // money received is not recorded from an alert, even if the model calls it income
   entries = [{kind: 'income', amount: 500, category: 'อื่นๆ', note: 'โอนเข้า'}];
-  assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, '']);
+  assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, 'เงินเข้า ฿500']);  // said, not saved
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'โอนเข้า').length, 0);
   // a card's void alert takes the payment out again
   entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', cancel: true}];
