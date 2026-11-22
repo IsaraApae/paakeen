@@ -394,7 +394,7 @@ try {
   assert.deepEqual(state.settings.alert_retry, []);
   // money received is not recorded from an alert, even if the model calls it income
   entries = [{kind: 'income', amount: 500, category: 'อื่นๆ', note: 'โอนเข้า'}];
-  assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, '']);
+  assert.deepEqual(await hook2(link, {text: 'เงินเข้า 500.00 บาท จาก นาย ก'}), [200, 'เงินเข้า ฿500']);  // said, not saved
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'โอนเข้า').length, 0);
   // a card's void alert takes the payment out again
   entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', cancel: true}];

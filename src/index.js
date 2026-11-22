@@ -340,7 +340,8 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
   const found = await gemini(env, parts, system);
   for (const e of found) {
     const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind, note = (typed ? snap(String(e?.note ?? ''), typed) : String(e?.note ?? '')).slice(0, 100);
-    if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12) || (spendOnly && kind !== 'expense')) continue;
+    if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12)) continue;
+    if (spendOnly && kind !== 'expense') { saved.push({received: true, kind, amount}); continue; }  // reported, never recorded
     const ts = validTs(e.datetime) ? e.datetime : now;
     if (auto && e.cancel && kind === 'expense') {  // a voided or cancelled payment takes out the matching entry from the last day
       const hit = await q(env, "SELECT id, note FROM entries WHERE user_id = ? AND kind = 'expense' AND amount = ? AND ts >= ? ORDER BY ts DESC, id DESC LIMIT 1",
@@ -972,7 +973,8 @@ async function api(env, u, method, path, body, state) {
 // alert of money spent and ignores the rest, money received included. The answer is plain text for the Shortcut to show as a notification.
 const NOTIFY = ' This is the text of a phone notification, forwarded automatically. Record it only if it is a bank, credit card '
   + 'or e-wallet alert about money the user spent or sent out (a payment, card charge, transfer out or top-up); '
-  + 'return an empty list for money received and for anything else, such as a chat, a promotion, a balance-only message or an OTP. '
+  + 'money received (เงินเข้า, a transfer in) is returned with kind \'income\' so it can be reported, and is not recorded; '
+  + 'return an empty list for anything else, such as a chat, a promotion, a balance-only message or an OTP. '
   + '`note` is the payee or payer as shown, otherwise what the alert calls the transaction. '
   + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
   + 'Return an empty list for a declined payment, a statement or bill reminder, cashback, a refund, points or a promotion.';
@@ -1047,7 +1049,8 @@ async function notify(request, env, url) {
     return say('ตอนนี้ AI ไม่ว่างจ้ะ ป้าเก็บแจ้งเตือนนี้ไว้ จะลองจดให้อีกครั้งในไม่กี่นาทีนะ');
   }
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
-  return say(saved.map(e => e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
+  // money received is only named ("เงินเข้า ฿500"), never recorded: just money out is
+  return say(saved.map(e => e.received ? `เงินเข้า ${money(s, e.amount)}` : e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
     : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${asked ? ' · ป้าถามต่อใน LINE นะ' : ''}`).join('\n'));
 }
 
