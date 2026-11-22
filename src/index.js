@@ -974,6 +974,8 @@ async function api(env, u, method, path, body, state) {
 const NOTIFY = ' This is the text of a phone notification, forwarded automatically. Record it only if it is a bank, credit card '
   + 'or e-wallet alert about money the user spent or sent out (a payment, card charge, transfer out or top-up); '
   + 'money received (เงินเข้า, a transfer in) is returned with kind \'income\' so it can be reported, and is not recorded; '
+  + 'but a credit card alert (KTC, UOB and other cards: a card number, a merchant, an amount) is always a charge, kind \'expense\', '
+  + 'even when it is headed รายการเงินเข้า, as KTC heads its card payments; '
   + 'return an empty list for anything else, such as a chat, a promotion, a balance-only message or an OTP. '
   + '`note` is the payee or payer as shown, otherwise what the alert calls the transaction. '
   + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
