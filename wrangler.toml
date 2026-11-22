@@ -24,8 +24,10 @@ APP_ORIGIN = "https://paakeen.p-isarabhakdi.workers.dev"  # used by the schedule
 # tried in order; the next one is used when a model is overloaded, retired or out of free quota (all on the free tier, Nov 2026)
 # Flash-Lite first: live timings showed it answering slips and voice notes in ~1.6s while the bigger Flash models took 9s+.
 # Then the newest free models. 2.5 Flash (shut down 1 Dec 2026) and 3.5 Flash (now routed to 3.6 Flash) are gone.
-GEMINI_MODEL = "gemini-3.5-flash-lite,gemini-4-hydrogen,gemini-3.6-flash,gemini-3.8-flash"
-GEMINI_FAST_MODEL = "gemini-3.5-flash-lite,gemini-4-hydrogen,gemini-3.6-flash,gemini-3.8-flash"  # typed messages
+# Flash-Lite is listed twice: the logs (18 and 22 Nov) showed one request hanging past the 9s limit while the next one,
+# 12s later, answered in under a second, so a second copy started alongside a stuck first one usually gets through.
+GEMINI_MODEL = "gemini-3.5-flash-lite,gemini-3.5-flash-lite,gemini-4-hydrogen,gemini-3.6-flash,gemini-3.8-flash"
+GEMINI_FAST_MODEL = "gemini-3.5-flash-lite,gemini-3.5-flash-lite,gemini-4-hydrogen,gemini-3.6-flash,gemini-3.8-flash"  # typed messages
 
 # Secrets, set once with `wrangler secret put <NAME>`:
 #   LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, GEMINI_API_KEY
