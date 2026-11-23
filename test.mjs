@@ -354,7 +354,7 @@ try {
   assert.doesNotMatch((await hook2(link, {text: 'จ่าย 89.00 บาท Starbucks'}))[1], /ถาม/);
   assert.equal(pushes.length, pushed + 1);
   // over ฿500: asked for the user's share; a split button or a typed amount lowers it
-  entries = [{kind: 'expense', amount: 1275, category: 'อาหาร', note: 'YOSHINOYA', party: 'business'}];
+  entries = [{kind: 'expense', amount: 1275, category: 'อาหาร', note: 'YOSHINOYA(CHAMCHURI SQ', party: 'business'}];  // the branch is dropped
   assert.match((await hook2(link, {text: 'มีการใช้บัตร THB 1,275.00 YOSHINOYA'}))[1], /ป้าถามต่อใน LINE/);
   const share = pushes.at(-1).messages[0];
   assert.match(JSON.stringify(share), /แจ้งเตือน ฿1,275 นี้ เป็นส่วนของหลานเท่าไหร่/);
