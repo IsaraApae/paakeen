@@ -315,6 +315,10 @@ function snap(note, text) {
 // 'YYYY-MM-DD HH:MM' moved by some minutes (local times, compared as text)
 const shiftTs = (ts, min) => new Date(Date.parse(ts.replace(' ', 'T') + 'Z') + min * 60e3).toISOString().slice(0, 16).replace('T', ' ');
 
+// A slip's or alert's shop without its branch, so every branch is one name (and one memory): "YOSHINOYA(CHAMCHURI SQ" and
+// "YOSHINOYA (Siam)" are YOSHINOYA, "Starbucks สาขาสยาม" is Starbucks. Left as it is if nothing would be left.
+const shopName = note => note.replace(/\s*[(\[].*$/, '').replace(/\s+สาขา.*$/, '').trim() || note.trim();
+
 // The user's categories and payment channels, which a message's entries are filed under.
 const readLists = (env, uid) => Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', uid),
   all(env, 'SELECT * FROM channels WHERE user_id = ? ORDER BY id', uid)]);
@@ -327,7 +331,8 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
   if (!s.track_channel) chans = [];
   const names = kind => cats.filter(c => c.kind === kind).map(c => c.name).join(', ');
   const system = 'Extract income/expense entries from the user\'s message, photo, voice note or PDF (Thai or English). '
-    + 'One entry per item; amount is a positive number. `note` is a short label for the item or shop. '
+    + 'One entry per item; amount is a positive number. `note` is a short label for the item or shop; for a shop, its name '
+    + 'without the branch or location (YOSHINOYA(CHAMCHURI SQ is YOSHINOYA, Starbucks สาขาสยาม is Starbucks). '
     + `\`category\` must be one of these. Expense: ${names('expense')}. Income: ${names('income')}. `
     + `\`datetime\` is 'YYYY-MM-DD HH:MM' only if the source says when it happened, otherwise ''. Now is ${now}. `
     + (chans.length ? `\`channel\` is how it was paid, one of: ${chans.map(c => c.name).join(', ')}; '' if not stated. ` : '')
@@ -339,7 +344,8 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
   const saved = [], typed = parts.every(p => p.text !== undefined) && parts.map(p => p.text).join('\n');
   const found = await gemini(env, parts, system);
   for (const e of found) {
-    const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind, note = (typed ? snap(String(e?.note ?? ''), typed) : String(e?.note ?? '')).slice(0, 100);
+    const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind, note = (typed && !auto ? snap(String(e?.note ?? ''), typed)  // the user's own words, as typed
+      : shopName(typed ? snap(String(e?.note ?? ''), typed) : String(e?.note ?? ''))).slice(0, 100);  // a slip's or alert's shop
     if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12)) continue;
     if (spendOnly && kind !== 'expense') { saved.push({received: true, kind, amount}); continue; }  // reported, never recorded
     const ts = validTs(e.datetime) ? e.datetime : now;
