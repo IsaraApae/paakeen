@@ -853,6 +853,11 @@ async function webhook(request, env, ctx) {
   return new Response(null, {status: 200});
 }
 
+// Marks a once-a-period or once-a-day message as sent, in the database itself, and says whether this run was the one that
+// did: two runs of the scheduled job at once (a slow one and the next) read the same settings, and would both send it.
+const claim = async (env, u, key, value) => (await q(env, `UPDATE users SET settings = json_set(settings, '$.${key}', ?)
+  WHERE id = ? AND json_extract(settings, '$.${key}') IS NOT ?`, value, u.id, value).run()).meta.changes > 0;  // key: from this file
+
 async function remind(env) {
   for (const u of await all(env, 'SELECT * FROM users')) {
     // a new menu version reaches every user within one run, without waiting for them to message the bot
@@ -862,13 +867,11 @@ async function remind(env) {
     const s = settings(u), now = localNow(s), today = now.slice(0, 10);
     // the first days of a new period (in case a run is missed), at the reminder time or else 09:00: last period's report
     const c = cycleOf(s);
-    if (origin && s.report && today <= addDays(c.from, 2) && (today > c.from || now.slice(11) >= (s.remind || '09:00')) && s.last_report !== c.from) {
-      await saveSettings(env, u, {last_report: c.from});
+    if (origin && s.report && today <= addDays(c.from, 2) && (today > c.from || now.slice(11) >= (s.remind || '09:00')) && s.last_report !== c.from && await claim(env, u, 'last_report', c.from)) {
       if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
     }
     // this job runs on the 5-minute marks and the day's last is 23:55: a reminder set for after it would never come round
-    if (!s.remind || now.slice(11) < (s.remind > '23:55' ? '23:55' : s.remind) || s.last_remind === today) continue;
-    await writeSettings(env, u.id, {last_remind: today});
+    if (!s.remind || now.slice(11) < (s.remind > '23:55' ? '23:55' : s.remind) || s.last_remind === today || !await claim(env, u, 'last_remind', today)) continue;
     if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
     }
