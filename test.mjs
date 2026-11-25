@@ -345,7 +345,7 @@ try {
   const pushed = pushes.length;
   assert.match((await hook2(link, {text: 'จ่าย 60.00 บาท MRKT 2291'}))[1], /ป้าจดแล้ว: -฿60 MRKT 2291 .*ป้าถามต่อใน LINE/);
   assert.equal(pushes.length, pushed + 1);
-  assert.match(JSON.stringify(pushes.at(-1)), /แจ้งเตือน ฿60 นี้จ่ายให้ “MRKT 2291”.*ใช้ชื่อนี้/);
+  assert.match(JSON.stringify(pushes.at(-1)), /แจ้งเตือน ฿60 นี้จ่ายให้ “MRKT 2291”.*ชื่อร้านไม่ชัด.*ใช้ชื่อนี้/);  // each question has its own title
   entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวเหนียวหมูปิ้ง'}];
   await say('ข้าวเหนียวหมูปิ้ง');
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ข้าวเหนียวหมูปิ้ง' && e.amount === 60).length, 1);
@@ -391,7 +391,7 @@ try {
   entries = [{kind: 'expense', amount: 1275, category: 'อาหาร', note: 'YOSHINOYA(CHAMCHURI SQ', party: 'business'}];  // the branch is dropped
   assert.match((await hook2(link, {text: 'มีการใช้บัตร THB 1,275.00 YOSHINOYA'}))[1], /ป้าถามต่อใน LINE/);
   const share = pushes.at(-1).messages[0];
-  assert.match(JSON.stringify(share), /แจ้งเตือน ฿1,275 นี้ เป็นส่วนของหลานเท่าไหร่/);
+  assert.match(JSON.stringify(share), /แจ้งเตือน ฿1,275 นี้ เป็นส่วนของหลานเท่าไหร่.*แบ่งจ่ายไหม?.*ยอดเต็ม/);
   assert.deepEqual(share.quickReply.items.map(i => i.action.label), ['จ่ายเองทั้งหมด', 'หาร 2 (฿637.5)', 'หาร 3 (฿425)', 'หาร 4 (฿318.75)']);
   await hook({type: 'postback', postback: {data: share.quickReply.items[1].action.data}});
   let yoshi = (await api(t1, 'GET', 'state')).entries.find(e => e.note === 'YOSHINOYA');
@@ -406,7 +406,7 @@ try {
   entries = [{kind: 'expense', amount: 150, category: 'อื่นๆ', note: 'Lazada', party: 'business'}];
   assert.match((await hook2(link, {text: 'จ่าย 150.00 บาท Lazada'}))[1], /ป้าถามต่อใน LINE/);
   const catQ = pushes.at(-1).messages[0];
-  assert.match(JSON.stringify(catQ), /“Lazada” ควรอยู่หมวดไหน/);
+  assert.match(JSON.stringify(catQ), /“Lazada” ควรอยู่หมวดไหน.*หมวดไหนดี?.*ตอนนี้อยู่หมวด อื่นๆ/);
   const shopBtn = catQ.quickReply.items.find(i => /ชอปปิ้ง/.test(i.action.label));
   assert.ok(shopBtn && !catQ.quickReply.items.some(i => /อื่นๆ/.test(i.action.label)));
   await hook({type: 'postback', postback: {data: shopBtn.action.data}});
