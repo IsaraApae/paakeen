@@ -67,11 +67,13 @@ const migrate = env => env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)))
     "INSERT INTO channels (user_id, name, type) SELECT id, 'เงินสด', 'cash' FROM users WHERE id NOT IN (SELECT user_id FROM channels WHERE type = 'cash')",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'KTC', 'card' FROM users",
     "INSERT INTO channels (user_id, name, type) SELECT id, 'UOB', 'card' FROM users",
-  ].map(sql => env.DB.prepare(sql))), () => {}));
+  ].map(sql => env.DB.prepare(sql))), () => {}))
+  // the shop a slip or alert showed, so renaming the entry in the app teaches its name (rememberName)
+  .then(() => env.DB.prepare('ALTER TABLE entries ADD COLUMN shop TEXT').run().catch(() => {}));
 // Each new isolate checks only that the newest migration has run, one query instead of running every migration first.
 // With little traffic most requests land on a new isolate. After adding a migration, point this at its column or index.
 let ready;
-const init = env => ready ??= env.DB.prepare('SELECT 1 FROM recurring INDEXED BY recurring_user LIMIT 0').run().catch(() => migrate(env))
+const init = env => ready ??= env.DB.prepare('SELECT shop FROM entries LIMIT 0').run().catch(() => migrate(env))
   .catch(e => { ready = null; throw e; });
 const q = (env, sql, ...args) => env.DB.prepare(sql).bind(...args);
 const all = async (env, sql, ...args) => (await q(env, sql, ...args).all()).results;
@@ -316,8 +318,14 @@ function snap(note, text) {
 const shiftTs = (ts, min) => new Date(Date.parse(ts.replace(' ', 'T') + 'Z') + min * 60e3).toISOString().slice(0, 16).replace('T', ' ');
 
 // A slip's or alert's shop without its branch, so every branch is one name (and one memory): "YOSHINOYA(CHAMCHURI SQ" and
-// "YOSHINOYA (Siam)" are YOSHINOYA, "Starbucks สาขาสยาม" is Starbucks. Left as it is if nothing would be left.
-const shopName = note => note.replace(/\s*[(\[].*$/, '').replace(/\s+สาขา.*$/, '').trim() || note.trim();
+// "YOSHINOYA (Siam)" are YOSHINOYA, "Starbucks สาขาสยาม" is Starbucks. A card alert carries the card network's merchant line:
+// the name, then the branch, city and country, the city often run into a name cut short. "STARBUCKS - SIAM PARAGON BANGKOK TH"
+// is STARBUCKS, "LINEPAY*PF_LINE MAN WONGNBANGKOK TH" is LINEPAY*PF_LINE MAN WONGN, "KFC @ Central" is KFC, and "7-ELEVEN 12345"
+// (a store number: # and digits, or five digits or more, so a code like MRKT 2291 stays) is 7-ELEVEN. A dash counts only with
+// spaces round it, so 7-11 stays. Left as it is if nothing would be left.
+const CITY_TH = /\s*(BANGKOK|BKK|NONTHABURI|SAMUT ?PRAKAN|PATHUM ?THANI|CHIANG ?MAI|PHUKET|CHON ?BURI|PATTAYA|KHON ?KAEN|HAT ?YAI)?\s+TH$/i;
+const shopName = note => note.replace(CITY_TH, '').replace(/\s*[(\[].*$/, '').replace(/\s*@.*$/, '').replace(/\s+[-–|]\s+.*$/, '')
+  .replace(/\s+สาขา.*$/, '').replace(/\s+(#\d+|\d{5,})$/, '').trim() || note.trim();
 
 // The user's categories and payment channels, which a message's entries are filed under.
 const readLists = (env, uid) => Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', uid),
@@ -332,19 +340,21 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
   const names = kind => cats.filter(c => c.kind === kind).map(c => c.name).join(', ');
   const system = 'Extract income/expense entries from the user\'s message, photo, voice note or PDF (Thai or English). '
     + 'One entry per item; amount is a positive number. `note` is a short label for the item or shop; for a shop, its name '
-    + 'without the branch or location (YOSHINOYA(CHAMCHURI SQ is YOSHINOYA, Starbucks สาขาสยาม is Starbucks). '
+    + 'without the branch or location (YOSHINOYA(CHAMCHURI SQ is YOSHINOYA, Starbucks สาขาสยาม is Starbucks, '
+    + 'STARBUCKS - SIAM PARAGON BANGKOK TH is STARBUCKS, MK RESTAURANTS CENTRAL RAMA 9 is MK RESTAURANTS). '
     + `\`category\` must be one of these. Expense: ${names('expense')}. Income: ${names('income')}. `
     + `\`datetime\` is 'YYYY-MM-DD HH:MM' only if the source says when it happened, otherwise ''. Now is ${now}. `
     + (chans.length ? `\`channel\` is how it was paid, one of: ${chans.map(c => c.name).join(', ')}; '' if not stated. ` : '')
     + 'Copy `note` from the user\'s own words exactly, keeping their spelling and every Thai vowel and tone mark; never correct, respell or translate it. '
     + '`party` is who received the money (expense) or sent it (income): \'business\' only for a clear, recognisable name of a shop, restaurant, company or brand; '
     + '\'unclear\' for a name that doesn\'t clearly say what the place is, such as an abbreviation, a code, a merchant account or a payment service (like QCS or ก.กาแฟสด); '
-    + '\'person\' for a person\'s name, \'unknown\' if it doesn\'t say. For a business or an unclear name, `note` is the name as shown. '
+    + '\'person\' for a person\'s name, \'unknown\' if it doesn\'t say. For a business or an unclear name, `note` is the name as shown, without its branch or location. '
     + 'If there is no amount of money, return an empty list.' + extra;
   const saved = [], typed = parts.every(p => p.text !== undefined) && parts.map(p => p.text).join('\n');
   const found = await gemini(env, parts, system);
   for (const e of found) {
-    const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind, note = (typed && !auto ? snap(String(e?.note ?? ''), typed)  // the user's own words, as typed
+    const amount = Math.round(Number(e?.amount) * 100) / 100, kind = e?.kind;
+    let note = (typed && !auto ? snap(String(e?.note ?? ''), typed)  // the user's own words, as typed
       : shopName(typed ? snap(String(e?.note ?? ''), typed) : String(e?.note ?? ''))).slice(0, 100);  // a slip's or alert's shop
     if (!['expense', 'income'].includes(kind) || !(amount > 0 && amount < 1e12)) continue;
     if (spendOnly && kind !== 'expense') { saved.push({received: true, kind, amount}); continue; }  // reported, never recorded
@@ -356,13 +366,19 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
       saved.push({cancelled: !!hit, kind, amount, note: hit?.note || note});
       continue;
     }
+    // A slip's or alert's shop, kept with the entry so that renaming it in the app is learned too (rememberName). Once the user
+    // has given a shop the same name of their own twice in a row, that name is used from then on, without asking. Not for a
+    // name that may stand for many places (a payment service such as LINE MAN, a code): its last answer is only offered.
+    const shop = auto ? note : null, own = shop && s.names?.[shop];
+    const renamed = typeof own === 'string' && own !== shop && s.name_times?.[shop] >= 2 && e.party !== 'unclear' && !vagueName(shop);
+    if (renamed) note = own;
     // the same payment already recorded (same amount and name within 2 hours, e.g. its slip and then its alert) isn't added
     // again; only for a single payment, since a receipt can list the same item twice
     const dup = auto && found.length === 1 && await q(env, `SELECT id, note FROM entries WHERE user_id = ? AND kind = ? AND amount = ?
       AND note = ? COLLATE NOCASE AND ts BETWEEN ? AND ? LIMIT 1`, u.id, kind, amount, note, shiftTs(ts, -120), shiftTs(ts, 120)).first();
     if (dup) { saved.push({dup: true, id: dup.id, kind, amount, note: dup.note}); continue; }
     const mine = cats.filter(c => c.kind === kind);
-    let cat = mine.find(c => c.name === e.category) || mine.at(-1), memory = 0;
+    let cat = mine.find(c => c.name === e.category) || mine.at(-1), memory = renamed ? 1 : 0;
     // the same item's earlier entries, newest first: what it was filed under (when memory is on) and how it was paid
     const learnChannel = chans.length && kind === 'expense' && note;
     const before = s.memory || learnChannel ? await all(env, `SELECT category_id, channel_id FROM entries
@@ -380,10 +396,10 @@ async function record(env, u, parts, cats, chans, {extra = '', auto = false, spe
       const usual = previous && last.channel_id === previous.channel_id && chans.find(c => c.id === last.channel_id);
       if (usual) [chan, memory] = [usual, 1];
     }
-    const {meta} = await q(env, `${INSERT_ENTRY} VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      u.id, ts, kind, amount, cat?.id ?? null, note, chan?.id ?? null, memory).run();
+    const {meta} = await q(env, 'INSERT INTO entries (user_id, ts, kind, amount, category_id, note, channel_id, memory, shop) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      u.id, ts, kind, amount, cat?.id ?? null, note, chan?.id ?? null, memory, shop).run();
     const colour = cat ? cat.color || (kind === 'income' ? INCOME_COLOUR : PAL[cats.filter(c => c.kind === 'expense').indexOf(cat) % PAL.length]) : '#A9A9B0';
-    saved.push({id: meta.last_row_id, ts, kind, amount, note, memory, colour, category: cat?.name ?? 'อื่นๆ', emoji: cat?.emoji, channel: chan?.name ?? '', party: e.party});
+    saved.push({id: meta.last_row_id, ts, kind, amount, note, memory, colour, category: cat?.name ?? 'อื่นๆ', emoji: cat?.emoji, channel: chan?.name ?? '', party: e.party, renamed});
   }
   return saved;
 }
@@ -586,13 +602,15 @@ function vagueName(name) {
   return [...n].length < 3 || /^([ก-ฮ]{1,2}\.)+/.test(n) || /\*|x{3,}/i.test(n) || /^[\d\s-]+$/.test(n)
     || (/^[A-Z0-9&.\-\s]{1,5}$/.test(n) && /[A-Z]/.test(n));
 }
-// Remembered per name on a slip: what the user called it last time, or the name itself once they said it is right.
+// Remembered per name on a slip or alert: what the user called it last time (answering in LINE, or renaming it in the app),
+// or the name itself once they said it is right, and how many times in a row they gave that same answer (name_times).
 function rememberName(env, u, shown, chosen) {
-  const names = {...settings(u).names};
-  delete names[shown];  // re-added last, so the oldest is the first to go
-  names[shown] = chosen;
-  for (const k of Object.keys(names).slice(0, -100)) delete names[k];
-  return saveSettings(env, u, {names});
+  const s = settings(u), names = {...s.names}, times = {...s.name_times};
+  const n = names[shown] === chosen ? (times[shown] || 1) + 1 : 1;  // an answer kept from before counts once
+  delete names[shown]; delete times[shown];  // re-added last, so the oldest is the first to go
+  names[shown] = chosen; times[shown] = n;
+  for (const k of Object.keys(names).slice(0, -100)) { delete names[k]; delete times[k]; }
+  return saveSettings(env, u, {names, name_times: times});
 }
 
 async function askName(env, origin, u, p) {
@@ -805,7 +823,7 @@ async function handleEvent(env, origin, ev, later = []) {
     await q(env, 'UPDATE entries SET channel_id = ? WHERE id = ? AND user_id = ?', cash ? cash.id : null, e.id, u.id).run();
     const named = ['business', 'unclear'].includes(e.party) && e.note;
     // a clear shop or restaurant name is name enough, and so is one the user has already said is right
-    if (named && (settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)))) {
+    if (named && (e.renamed || settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)))) {
       if (pendingOf(u)) await saveSettings(env, u, {pending: null});  // an earlier slip's question would take the next message
       return [await entryCard(env, origin, u, e.id)];
     }
@@ -853,6 +871,11 @@ async function webhook(request, env, ctx) {
   return new Response(null, {status: 200});
 }
 
+// Marks a once-a-period or once-a-day message as sent, in the database itself, and says whether this run was the one that
+// did: two runs of the scheduled job at once (a slow one and the next) read the same settings, and would both send it.
+const claim = async (env, u, key, value) => (await q(env, `UPDATE users SET settings = json_set(settings, '$.${key}', ?)
+  WHERE id = ? AND json_extract(settings, '$.${key}') IS NOT ?`, value, u.id, value).run()).meta.changes > 0;  // key: from this file
+
 async function remind(env) {
   for (const u of await all(env, 'SELECT * FROM users')) {
     // a new menu version reaches every user within one run, without waiting for them to message the bot
@@ -862,13 +885,11 @@ async function remind(env) {
     const s = settings(u), now = localNow(s), today = now.slice(0, 10);
     // the first days of a new period (in case a run is missed), at the reminder time or else 09:00: last period's report
     const c = cycleOf(s);
-    if (origin && s.report && today <= addDays(c.from, 2) && (today > c.from || now.slice(11) >= (s.remind || '09:00')) && s.last_report !== c.from) {
-      await saveSettings(env, u, {last_report: c.from});
+    if (origin && s.report && today <= addDays(c.from, 2) && (today > c.from || now.slice(11) >= (s.remind || '09:00')) && s.last_report !== c.from && await claim(env, u, 'last_report', c.from)) {
       if (await hasEntries(env, u, cycleOf(s, -1))) await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [await reportMsg(env, origin, u, -1)]}).catch(console.error);
     }
     // this job runs on the 5-minute marks and the day's last is 23:55: a reminder set for after it would never come round
-    if (!s.remind || now.slice(11) < (s.remind > '23:55' ? '23:55' : s.remind) || s.last_remind === today) continue;
-    await writeSettings(env, u.id, {last_remind: today});
+    if (!s.remind || now.slice(11) < (s.remind > '23:55' ? '23:55' : s.remind) || s.last_remind === today || !await claim(env, u, 'last_remind', today)) continue;
     if (!await hasEntries(env, u, {from: today, to: today})) {
       await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [textMsg('วันนี้จดรายรับรายจ่ายหรือยังจ๊ะหลาน พิมพ์มาบอกป้าได้เลย')]}).catch(console.error);
     }
@@ -960,7 +981,10 @@ async function api(env, u, method, path, body, state) {
     return {id: meta.last_row_id};
   }
   if (method === 'PUT' && id !== undefined && keys.length) {
+    // renaming a slip's or alert's entry teaches its shop's name, as an answer in LINE does: the same name twice, then always
+    const was = table === 'entries' && vals.note && await q(env, 'SELECT note, shop FROM entries WHERE id = ? AND user_id = ?', vInt(id), uid).first();
     await q(env, `UPDATE ${table} SET ${keys.map(k => k + ' = ?').join(', ')} WHERE id = ? AND user_id = ?`, ...Object.values(vals), vInt(id), uid).run();
+    if (was?.shop && vals.note !== was.note) await rememberName(env, u, was.shop, vals.note);
     return {};
   }
   if (method === 'DELETE' && id !== undefined) {
@@ -983,7 +1007,7 @@ const NOTIFY = ' This is the text of a phone notification, forwarded automatical
   + 'but a credit card alert (KTC, UOB and other cards: a card number, a merchant, an amount) is always a charge, kind \'expense\', '
   + 'even when it is headed รายการเงินเข้า, as KTC heads its card payments; '
   + 'return an empty list for anything else, such as a chat, a promotion, a balance-only message or an OTP. '
-  + '`note` is the payee or payer as shown, otherwise what the alert calls the transaction. '
+  + '`note` is the payee or payer as shown (a shop without its branch, city or country), otherwise what the alert calls the transaction. '
   + 'If it says an earlier card payment was voided or cancelled, return that one payment with `cancel` true. '
   + 'Return an empty list for a declined payment, a statement or bill reminder, cashback, a refund, points or a promotion.';
 // A payment whose payee isn't clearly a shop is asked about in LINE, as a slip's is: the user's next message names it.
@@ -991,7 +1015,7 @@ const NOTIFY = ' This is the text of a phone notification, forwarded automatical
 // It is a push message (there is no chat to reply in), so only when unsure; a failed push just leaves the name as shown.
 async function askAboutAlert(env, origin, u, e) {
   const named = ['business', 'unclear'].includes(e.party) && e.note;
-  const clear = named && (settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)));
+  const clear = named && (e.renamed || settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)));
   const share = e.kind === 'expense' && e.amount > SHARE_FROM;
   if (clear && !share && !await unsureCategory(env, u, e.id)) return false;
   const p = {ids: [e.id], until: Date.now() + 60 * 60e3, alert: true, amount: e.amount, named: clear, share, ...(named ? {shown: e.note} : {})};
