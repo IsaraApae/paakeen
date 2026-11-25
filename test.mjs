@@ -349,10 +349,44 @@ try {
   entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวเหนียวหมูปิ้ง'}];
   await say('ข้าวเหนียวหมูปิ้ง');
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ข้าวเหนียวหมูปิ้ง' && e.amount === 60).length, 1);
+  // a name that may stand for many places is never renamed by itself, however often it got the same answer: only offered
+  entries = [{kind: 'expense', amount: 61, category: 'อาหาร', note: 'MRKT 2291', party: 'unclear'}];
+  await hook2(link, {text: 'จ่าย 61.00 บาท MRKT 2291'});
+  entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวเหนียวหมูปิ้ง'}];
+  await say('ข้าวเหนียวหมูปิ้ง');
+  entries = [{kind: 'expense', amount: 62, category: 'อาหาร', note: 'MRKT 2291', party: 'unclear'}];
+  assert.match((await hook2(link, {text: 'จ่าย 62.00 บาท MRKT 2291'}))[1], /ป้าจดแล้ว: -฿62 MRKT 2291 .*ป้าถามต่อใน LINE/);
+  assert.equal(pushes.at(-1).messages[0].quickReply.items[0].action.label, 'ข้าวเหนียวหมูปิ้ง');
+  entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวเหนียวหมูปิ้ง'}];
+  await say('ข้าวเหนียวหมูปิ้ง');
   // a clear shop name is not asked about
+  const quiet = pushes.length;
   entries = [{kind: 'expense', amount: 89, category: 'อาหาร', note: 'Starbucks', party: 'business'}];
   assert.doesNotMatch((await hook2(link, {text: 'จ่าย 89.00 บาท Starbucks'}))[1], /ถาม/);
-  assert.equal(pushes.length, pushed + 1);
+  assert.equal(pushes.length, quiet);
+  // a card's merchant line loses its branch, city, country and store number
+  for (const [shown, kept, amount] of [['STARBUCKS - SIAM PARAGON BANGKOK TH', 'STARBUCKS', 95], ['KFC @ Central World', 'KFC', 159], ['7-ELEVEN 12345', '7-ELEVEN', 42]]) {
+    entries = [{kind: 'expense', amount, category: 'อาหาร', note: shown, party: 'business'}];
+    assert.equal((await hook2(link, {text: `มีการใช้บัตร THB ${amount}.00 ${shown}`}))[1], `ป้าจดแล้ว: -฿${amount} ${kept} (อาหาร)`);
+  }
+  // a shop renamed the same way twice (here in the app) is given that name from then on, without a question
+  const afterYou = n => {
+    entries = [{kind: 'expense', amount: 200 + n, category: 'ขนมหวาน', note: 'AFTER YOU - SIAM PARAGON BANGKOK TH', party: 'business'}];
+    return hook2(link, {text: `มีการใช้บัตร THB ${200 + n}.00 AFTER YOU - SIAM PARAGON BANGKOK TH`});
+  };
+  for (const n of [1, 2]) {
+    assert.equal((await afterYou(n))[1], `ป้าจดแล้ว: -฿${200 + n} AFTER YOU (ขนมหวาน)`);
+    const e = (await api(t1, 'GET', 'state')).entries.find(x => x.note === 'AFTER YOU');
+    assert.equal(e.shop, 'AFTER YOU');
+    assert.deepEqual(await api(t1, 'PUT', `entries/${e.id}`, {note: 'อาฟเตอร์ยู', amount: e.amount}), {});
+  }
+  assert.equal((await afterYou(3))[1], 'ป้าจดแล้ว: -฿203 อาฟเตอร์ยู (ขนมหวาน)');
+  assert.equal((await api(t1, 'GET', 'state')).entries.find(x => x.amount === 203).memory, 1);
+  // another name breaks the habit again
+  const third = (await api(t1, 'GET', 'state')).entries.find(x => x.amount === 203);
+  await api(t1, 'PUT', `entries/${third.id}`, {note: 'After You สยาม'});
+  assert.equal((await afterYou(4))[1], 'ป้าจดแล้ว: -฿204 AFTER YOU (ขนมหวาน)');
+  assert.equal(pushes.length, quiet);  // none of these were asked about
   // over ฿500: asked for the user's share; a split button or a typed amount lowers it
   entries = [{kind: 'expense', amount: 1275, category: 'อาหาร', note: 'YOSHINOYA(CHAMCHURI SQ', party: 'business'}];  // the branch is dropped
   assert.match((await hook2(link, {text: 'มีการใช้บัตร THB 1,275.00 YOSHINOYA'}))[1], /ป้าถามต่อใน LINE/);
