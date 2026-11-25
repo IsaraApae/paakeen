@@ -325,7 +325,7 @@ const shiftTs = (ts, min) => new Date(Date.parse(ts.replace(' ', 'T') + 'Z') + m
 // spaces round it, so 7-11 stays. Left as it is if nothing would be left.
 const CITY_TH = /\s*(BANGKOK|BKK|NONTHABURI|SAMUT ?PRAKAN|PATHUM ?THANI|CHIANG ?MAI|PHUKET|CHON ?BURI|PATTAYA|KHON ?KAEN|HAT ?YAI)?\s+TH$/i;
 const shopName = note => note.replace(CITY_TH, '').replace(/\s*[(\[].*$/, '').replace(/\s*@.*$/, '').replace(/\s+[-–|]\s+.*$/, '')
-  .replace(/\s+สาขา.*$/, '').replace(/\s+(#\d+|\d{5,})$/, '').trim() || note.trim();
+  .replace(/\s+สาขา.*$/, '').replace(/\s+(#\d+|\d{5,})$/, '').replace(/[\s*|@#,.:-]+$/, '').trim() || note.trim();
 
 // The user's categories and payment channels, which a message's entries are filed under.
 const readLists = (env, uid) => Promise.all([all(env, 'SELECT * FROM categories WHERE user_id = ? ORDER BY sort, id', uid),
@@ -593,7 +593,7 @@ async function entryCard(env, origin, u, id) {
 }
 
 // Short all-capitals names that really are well-known brands, so vagueName leaves them alone.
-const KNOWN_SHORT = new Set(['KFC', 'MK', 'BTS', 'MRT', 'ARL', 'PTT', 'AIS', 'DTAC', 'TRUE', 'CP', 'OR', 'GAP', 'H&M', 'S&P', 'ZARA', 'IKEA', 'TOPS', 'BIG C', 'LOTUS', 'MAX', 'GRAB', 'LINE', 'MEA', 'PEA', 'MWA', 'PWA', '3BB', 'KTC', 'UOB', 'SCB', 'AIA', 'ZEN', 'MBK']);
+const KNOWN_SHORT = new Set(['7-11', 'KFC', 'MK', 'BTS', 'MRT', 'ARL', 'PTT', 'AIS', 'DTAC', 'TRUE', 'CP', 'OR', 'GAP', 'H&M', 'S&P', 'ZARA', 'IKEA', 'TOPS', 'BIG C', 'LOTUS', 'MAX', 'GRAB', 'LINE', 'MEA', 'PEA', 'MWA', 'PWA', '3BB', 'KTC', 'UOB', 'SCB', 'AIA', 'ZEN', 'MBK']);
 // The model can call anything on a slip a business, so names that say nothing about the place are caught here as well:
 // a code like QCS, a leading abbreviation like ก.กาแฟสด, a masked name or a bare number.
 function vagueName(name) {
@@ -622,19 +622,33 @@ async function askName(env, origin, u, p) {
     ...(p.shown ? [{type: 'action', action: {type: 'postback', label: 'ใช้ชื่อนี้', data: `nameok:${id}`, displayText: `ใช้ชื่อ ${p.shown}`.slice(0, 300)}}] : []),
     skip(`nameskip:${id}`),
   ]};
-  return askCard(env, origin, u, id, question, quickReply);
+  // the name as the slip or alert shows it, in a grey row like an entry's, so it isn't mistaken for the question
+  const row = p.shown && greyRow([T(p.shown, {size: 'md', color: INK}), T(p.alert ? 'ชื่อบนแจ้งเตือน' : 'ชื่อบนสลิป', {size: 'xs', color: GREY})]);
+  return askCard(env, origin, u, p, p.shown ? 'shop' : 'item', question, quickReply, row,
+    p.shown ? 'รายการนี้คืออะไรจ๊ะ? พิมพ์ชื่อรายการมาได้เลย หรือกด “ใช้ชื่อนี้”' : 'พิมพ์ชื่อรายการมาได้เลย เช่น “ข้าวมันไก่”');
 }
-// A question about one entry: its amount as the saved card will show it, the hamster asking, then the question.
-async function askCard(env, origin, u, id, question, quickReply) {
+// The four questions about a slip or bank alert look different, so one can't be taken for another at a glance: each has
+// its own coloured badge and a title saying what is asked. [colour (from the category colours), emoji, title]
+const ASK = {
+  shop: ['#86B2DE', '🏪', 'ชื่อร้านไม่ชัด'],  // the payee's name doesn't say what the place is
+  item: ['#7FC4BD', '✏️', 'ค่าอะไรจ๊ะ?'],  // there is no name at all
+  category: ['#E8AC72', '🏷️', 'หมวดไหนดี?'],  // it would otherwise stay in อื่นๆ
+  share: ['#9F9DDA', '👥', 'แบ่งจ่ายไหม?'],  // a big payment may have covered friends too
+};
+const greyRow = (lines, lead) => ({type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', backgroundColor: FILL, cornerRadius: 'lg', paddingAll: '12px',
+  contents: [...(lead ? [lead] : []), {type: 'box', layout: 'vertical', flex: 1, contents: lines}]});
+// A question about one entry: the badge and title of its kind (ASK), the slip or alert it is about and its time, the
+// thing asked about (row), then how to answer. question: the whole question as one line, for notifications and text replies.
+async function askCard(env, origin, u, p, kind, question, quickReply, row, hint) {
   const s = settings(u);
   if (s.confirm === 'text') return {...textMsg(question), quickReply};
-  const e = await q(env, 'SELECT amount, kind FROM entries WHERE id = ? AND user_id = ?', id, u.id).first();
-  return {...flex(question, [{type: 'bubble', size: 'kilo', body: {type: 'box', layout: 'vertical', spacing: 'lg', paddingAll: '20px', backgroundColor: '#FFFFFF', contents: [
-    {type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', contents: [
-      {type: 'box', layout: 'vertical', flex: 1, contents: [bigAmount(s, e?.amount ?? 0, e?.kind === 'income' ? GREEN : RED, 'xxl')]},
-      character(origin, 'ask', '64px'),
-    ]},
-    T(question, {size: 'sm', color: INK}),
+  const e = await q(env, 'SELECT amount, ts FROM entries WHERE id = ? AND user_id = ?', p.ids[0], u.id).first();
+  const [colour, emoji, title] = ASK[kind], sub = `${p.alert ? 'แจ้งเตือน' : 'สลิป'} ${money(s, e?.amount ?? 0)}${e?.ts ? ' · ' + e.ts.slice(11) : ''}`;
+  // mega, a little wider than the saved card, so the title and the line under it fit beside the badge and the hamster
+  return {...flex(question, [{type: 'bubble', size: 'mega', body: {type: 'box', layout: 'vertical', spacing: 'lg', paddingAll: '20px', backgroundColor: '#FFFFFF', contents: [
+    cardHead(title, sub, character(origin, 'ask', '52px'), badge(colour, emoji, '36px')),
+    ...(row ? [row] : []),
+    T(hint, {size: 'sm', color: INK}),
   ]}}]), quickReply};
 }
 
@@ -644,10 +658,12 @@ function askShare(env, origin, u, p) {
   const s = settings(u), id = p.ids[0], all = p.amount, split = n => Math.round(all / n * 100) / 100;
   const question = `แจ้งเตือน ${money(s, all)} นี้ เป็นส่วนของหลานเท่าไหร่จ๊ะ? เผื่อจ่ายให้เพื่อนด้วย พิมพ์จำนวนเงินมาได้เลย หรือเลือกด้านล่าง`;
   const btn = (label, data, shown) => ({type: 'action', action: {type: 'postback', label, data, displayText: shown}});
-  return askCard(env, origin, u, id, question, {items: [
+  // the only question with the amount large: it is what is being split
+  const row = greyRow([T('ยอดเต็ม', {size: 'xs', color: GREY}), bigAmount(s, all, RED, 'xxl')]);
+  return askCard(env, origin, u, p, 'share', question, {items: [
     btn('จ่ายเองทั้งหมด', `share:${id}:1`, `ส่วนของฉัน ${money(s, all)}`),
     ...[2, 3, 4].map(n => btn(`หาร ${n} (${money(s, split(n))})`.slice(0, 20), `share:${id}:${n}`, `หาร ${n} ส่วนของฉัน ${money(s, split(n))}`)),
-  ]});
+  ]}, row, 'เผื่อจ่ายให้เพื่อนด้วย เลือกหารด้านล่าง หรือพิมพ์ส่วนของหลานมาได้เลย');
 }
 // The user's share: an amount they typed, or the alert's amount split n ways. Only ever lowers it.
 async function setShare(env, u, p, amount) {
@@ -663,10 +679,12 @@ async function askCategory(env, origin, u, p) {
   const id = p.ids[0], e = await q(env, 'SELECT kind, note FROM entries WHERE id = ? AND user_id = ?', id, u.id).first();
   const cats = await all(env, "SELECT id, name, emoji FROM categories WHERE user_id = ? AND kind = ? AND name != 'อื่นๆ' ORDER BY sort, id", u.id, e?.kind || 'expense');
   const question = `“${e?.note || 'รายการนี้'}” ควรอยู่หมวดไหนจ๊ะ? ป้าไม่แน่ใจ เลือกด้านล่างหรือพิมพ์ชื่อหมวดมาได้เลย`;
-  return askCard(env, origin, u, id, question, {items: [  // LINE shows at most 13 quick replies
+  // the entry as it is now, still in อื่นๆ
+  const row = greyRow([T(e?.note || 'รายการนี้', {size: 'md', color: INK}), T('ตอนนี้อยู่หมวด อื่นๆ', {size: 'xs', color: GREY})], badge('#A9A9B0', catEmoji('อื่นๆ'), '36px'));
+  return askCard(env, origin, u, p, 'category', question, {items: [  // LINE shows at most 13 quick replies
     ...cats.slice(0, 12).map(c => ({type: 'action', action: {type: 'postback', label: `${catEmoji(c.name, c.emoji)} ${c.name}`.trim().slice(0, 20), data: `cat:${id}:${c.id}`, displayText: c.name}})),
     skip(`catskip:${id}`),
-  ]});
+  ]}, row, 'ป้าไม่แน่ใจ เลือกด้านล่างหรือพิมพ์ชื่อหมวดมาได้เลย');
 }
 async function setCategory(env, u, p, catId) {
   const c = await q(env, 'SELECT id FROM categories WHERE id = ? AND user_id = ?', catId, u.id).first();
