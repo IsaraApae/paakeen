@@ -1154,20 +1154,21 @@ const VIEWS = {
 
     <div class="group step"><h2><i>3</i>Make the automation</h2>
       <ol><li>In Shortcuts, tap <b>Automation</b> → <b>+</b>.</li>
-        <li>Choose <b>When I receive a notification from</b> and pick <b>LINE</b>. Tap <b>Add Filter</b> → <b>Title</b> · <b>contains</b> · your bank's LINE account as its alerts show it (for example <b>KBank</b>). Then only that account starts it: iPhone announces every run, and your other chats never leave the phone.</li>
-        <li>Another bank or card in LINE (for example <b>KTC</b>): add one more trigger, <b>LINE</b> with its own Title filter. It shows as <b>or</b>.</li>
+        <li>Choose <b>When I receive a notification from</b> and pick <b>LINE</b>. Tap <b>Add Filter</b> → <b>Title</b> · <b>contains</b> · your bank's LINE account as its alerts show it (for example <b>KBank Live</b>). Then only that account starts it: iPhone announces every run, and your other chats never leave the phone.</li>
+        <li>Tap <b>Add Filter</b> once more → <b>Message</b> · <b>contains</b> · a word that the bank's <b>payment</b> alerts show in the notification (KBank Live: <b>จากบัญชี</b>), so its other alerts don't start it. If asked <b>All</b> or <b>Any</b>, choose <b>All</b>.</li>
+        <li>Another bank or card in LINE (for example <b>KTC</b>): add one more trigger, <b>LINE</b> with its own Title and Message filters (KTC: <b>KTC</b> and <b>บัตรเสริม</b>, the word its supplementary card's payment alerts use). It shows as <b>or</b>.</li>
         <li>Turn <b>Automation</b> on (run immediately) and <b>Notify</b> off.</li>
         <li>Add <b>Run Shortcut</b> and pick <b>Send to ป้าคีน</b>. Tap the <b>›</b> and set <b>Input</b> to <b>Shortcut Input</b>.</li>
         <li>Card alerts that come by <b>SMS</b> (like UOB): in the same automation, add another trigger, <b>When I receive a notification from</b> → <b>Messages</b>. It shows as <b>or</b>. Tap <b>Add Filter</b> → <b>Title</b> · <b>contains</b> · the sender's name as Messages shows it (for UOB: <b>UOBT</b>), so only that bank's texts are sent. A card's own app works the same way.</li>
-        <li>For an <b>SMS</b> trigger, <b>Add Filter</b> once more → <b>Message</b> · <b>contains</b> · the words its <b>spending</b> texts use (UOB: <b>มีการใช้</b>), so other texts don't start it. If asked <b>All</b> or <b>Any</b>, choose <b>All</b>.
-          Leave this off the <b>LINE</b> triggers: LINE's notification shows a short summary, not the heading inside the bank's card in the chat (such as รายการโอน/ถอน), so those words never match and nothing gets through. Money coming in is no matter: ป้าคีน only says "เงินเข้า ฿…" and doesn't record it.</li></ol>
-      <div class="mock"><span class="cap">The automation should look like this (one trigger per bank or card; Messages only for SMS alerts)</span>
+        <li>For an <b>SMS</b> trigger, <b>Add Filter</b> once more → <b>Message</b> · <b>contains</b> · the words its <b>spending</b> texts use (UOB: <b>มีการใช้</b>), so other texts don't start it.</li></ol>
+      <p class="sub" style="margin:0">Take each <b>Message</b> word from a real payment alert as it shows on your lock screen. For LINE that is a short summary, not the heading inside the bank's card in the chat (such as รายการโอน/ถอน), so a heading word never matches and nothing gets through. If an alert stops reaching ป้าคีน, take its Message filter off: money coming in is no matter, ป้าคีน only says "เงินเข้า ฿…" and doesn't record it.</p>
+      <div class="mock"><span class="cap">The automation should look like this (one trigger per bank or card, each with a Title and a Message filter; Messages only for SMS alerts)</span>
         ${RECEIVE}
         ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP), 'logo'))} ${tok('+')} ${GO}`,
-          [[`<span>${tok('Title')} contains ${tok('KBank Live')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', '']])}
+          [[`<span>${tok('Title')} contains ${tok('KBank Live')}</span>`, '<span class="blue">⊖</span>'], [`<span>${tok('Message')} contains ${tok('จากบัญชี')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', '']])}
         <span class="dim" style="text-align:center">or</span>
         ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('LINE', mini('#06C755', sv(LINEP), 'logo'))} ${tok('+')} ${GO}`,
-          [[`<span>${tok('Title')} contains ${tok('KTC')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', '']])}
+          [[`<span>${tok('Title')} contains ${tok('KTC')}</span>`, '<span class="blue">⊖</span>'], [`<span>${tok('Message')} contains ${tok('บัตรเสริม')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', '']])}
         <span class="dim" style="text-align:center">or</span>
         ${card(`<span style="color:#EB4E45">${sv(bell('#2C2C2E'))}</span> <b>When I receive a notification from</b> ${tok('Messages', mini('#34C759', sv(BUBBLE)))} ${tok('+')} ${OPEN}`,
           [[`<span>${tok('Title')} contains ${tok('UOBT')}</span>`, '<span class="blue">⊖</span>'], [`<span>${tok('Message')} contains ${tok('มีการใช้')}</span>`, '<span class="blue">⊖</span>'], ['<span class="blue">⊕ Add Filter</span>', ''],
