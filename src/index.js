@@ -695,7 +695,7 @@ async function setCategory(env, u, p, catId) {
 // Ask the pending entry's name, then (a big bank alert) the user's share, then its category if it landed in อื่นๆ; once
 // all are answered or skipped, close the follow-up and show the saved card.
 async function nextStep(env, origin, u, done) {
-  const p = {...settings(u).pending, ...done}, id = p.ids[0];
+  const p = {...settings(u).pending, ...done, wait: undefined}, id = p.ids[0];  // answered or asked: no longer waiting for a bill
   const step = !p.named ? 'name' : p.share && !p.shared ? 'share' : !p.filed && await unsureCategory(env, u, id) ? 'category' : null;
   await saveSettings(env, u, {pending: step ? p : null});
   return step === 'name' ? askName(env, origin, u, p) : step === 'share' ? askShare(env, origin, u, p) : step === 'category' ? askCategory(env, origin, u, p) : entryCard(env, origin, u, id);
@@ -703,7 +703,7 @@ async function nextStep(env, origin, u, done) {
 
 // File a named slip by its name: a name used before keeps that category (when memory is on), otherwise the fast model
 // picks one. If neither gives an answer, the category guessed from the slip itself stays.
-async function categoriseByName(env, u, id, name) {
+async function categoriseByName(env, u, id, name, items = '') {
   const e = await q(env, 'SELECT kind FROM entries WHERE id = ? AND user_id = ?', id, u.id).first();
   if (!e) return;
   const cats = await all(env, 'SELECT id, name FROM categories WHERE user_id = ? AND kind = ? ORDER BY sort, id', u.id, e.kind);
@@ -711,7 +711,7 @@ async function categoriseByName(env, u, id, name) {
     u.id, e.kind, name, id).first();
   let cat = cats.find(c => c.id === seen?.category_id), memory = cat ? 1 : 0;
   if (!cat) {
-    const [guess] = await gemini(env, [{text: name}], `The user names one ${e.kind === 'expense' ? 'expense' : 'income'} item (Thai or English). `
+    const [guess] = await gemini(env, [{text: items ? `${name} (${items})` : name}], `The user names one ${e.kind === 'expense' ? 'expense' : 'income'} item (Thai or English)${items ? ', with what was on its bill in brackets' : ''}. `
       + `Return exactly one entry: kind '${e.kind}', amount 1, note the name as given, and the category that fits it best, one of: ${cats.map(c => c.name).join(', ')}.`)
       .catch(err => { console.error(err); return []; });
     cat = cats.find(c => c.name === guess?.category);
@@ -805,13 +805,16 @@ async function handleEvent(env, origin, ev, later = []) {
       const c = await q(env, 'SELECT id FROM categories WHERE user_id = ? AND name = ? COLLATE NOCASE', u.id, text).first();
       if (c && await setCategory(env, u, slip, c.id)) return [await nextStep(env, origin, u, {filed: true})];
     }
-    if (slip && slip.named && slip.share && !slip.shared) {
-      const n = Number(text.replace(/[,฿\s]|บาท/g, ''));
+    // While waiting for a bill no question has been shown, so a message counts as an answer only if it reads like one:
+    // a name without an amount, or just a number for the share. "กาแฟ 60" is a new entry, as usual.
+    const share = Number(text.replace(/[,฿\s]|บาท/g, ''));
+    if (slip && slip.named && slip.share && !slip.shared && !(slip.wait && !(share > 0))) {
+      const n = share;
       if (!(n > 0)) return [{...textMsg(`พิมพ์เป็นตัวเลขนะจ๊ะ เช่น ${Math.round(slip.amount / 2)} หรือเลือกด้านล่าง`), quickReply: (await askShare(env, origin, u, slip)).quickReply}];
       await setShare(env, u, slip, n);
       return [await nextStep(env, origin, u, {shared: true})];
     }
-    if (slip && !slip.named) {
+    if (slip && !slip.named && !(slip.wait && /\d\s*(บาท|฿)?$/.test(text))) {
       await env.DB.batch(slip.ids.map(id => q(env, 'UPDATE entries SET note = ? WHERE id = ? AND user_id = ?', text.slice(0, 100), id, u.id)));
       await categoriseByName(env, u, slip.ids[0], text.slice(0, 100));
       if (slip.shown) await rememberName(env, u, slip.shown, text.slice(0, 100));
@@ -900,6 +903,7 @@ async function remind(env) {
     const origin = settings(u).menu_origin || env.APP_ORIGIN;
     if (origin) await ensureMenu(env, origin, u).catch(console.error);
     if (origin && settings(u).alert_retry?.length) await retryAlerts(env, origin, u).catch(console.error);
+    if (origin && settings(u).pending?.wait) await checkBillWait(env, origin, u).catch(console.error);
     const s = settings(u), now = localNow(s), today = now.slice(0, 10);
     // the first days of a new period (in case a run is missed), at the reminder time or else 09:00: last period's report
     const c = cycleOf(s);
@@ -931,6 +935,8 @@ const vStart = v => { need(validDate(v) && v >= addDays(iso(new Date()), -366));
 const vBool = v => { need(typeof v === 'boolean'); return v; };
 const vDay = v => { v = vInt(v); need(v >= 1 && v <= 31); return v; };
 const vTz = v => { try { new Intl.DateTimeFormat('en-US', {timeZone: v}); } catch { need(false); } need(typeof v === 'string'); return v; };
+// Bill Splitter's private link (Me → ป้าคีน), or '' for none; only ever read from BILLS_ORIGIN (billsFeed)
+const vBills = v => { need(typeof v === 'string' && (v === '' || /^https?:\/\/[\w.:-]+\/api\/feed\/[\w-]{43}$/.test(v.trim()))); return v.trim(); };
 const vRemind = v => { need(v === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(v)); return v; };
 
 const vColor = v => { need(typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)); return v; };
@@ -946,7 +952,7 @@ const TABLES = {
 };
 const SETTINGS = {
   memory: vBool, track_channel: vBool, theme: vChoice('auto', 'light', 'dark'), confirm: vChoice('card', 'text'), remind: vRemind, lang: vChoice('th', 'en'),
-  currency: v => vName(v).slice(0, 3), tz: vTz, cycle_day: vDay, report: vBool,
+  currency: v => vName(v).slice(0, 3), tz: vTz, cycle_day: vDay, report: vBool, bills: vBills,
 };
 const validated = (rules, body) => Object.fromEntries(Object.entries(body).filter(([k]) => Object.hasOwn(rules, k)).map(([k, v]) => [k, rules[k](v)]));
 
@@ -1031,15 +1037,60 @@ const NOTIFY = ' This is the text of a phone notification, forwarded automatical
 // A payment whose payee isn't clearly a shop is asked about in LINE, as a slip's is: the user's next message names it.
 // One over SHARE_FROM is also asked how much of it was the user's own, and one that landed in อื่นๆ its category.
 // It is a push message (there is no chat to reply in), so only when unsure; a failed push just leaves the name as shown.
+// Returns 'asked' (a question went), 'wait' (waiting for a bill, see below), 'bill' (a bill answered it) or false.
 async function askAboutAlert(env, origin, u, e) {
   const named = ['business', 'unclear'].includes(e.party) && e.note;
   const clear = named && (e.renamed || settings(u).names?.[e.note] === e.note || (e.party === 'business' && !vagueName(e.note)));
   const share = e.kind === 'expense' && e.amount > SHARE_FROM;
   if (clear && !share && !await unsureCategory(env, u, e.id)) return false;
   const p = {ids: [e.id], until: Date.now() + 60 * 60e3, alert: true, amount: e.amount, named: clear, share, ...(named ? {shown: e.note} : {})};
+  // The name or the share is what a bill split in Bill Splitter answers: if one matching this payment is there, it is
+  // used straight away; if not, ป้าคีน waits for one (checkBillWait, on the scheduled runs) before asking. Meanwhile
+  // the question is open as usual, so the user can still answer by typing, which ends the wait.
+  if ((!clear || share) && billsFeed(env, settings(u))) {
+    const bill = await findBill(env, u, e.amount).catch(err => (console.error(err), null));
+    await saveSettings(env, u, {pending: bill ? p : {...p, wait: Date.now() + billWait(env), until: Date.now() + billWait(env) + 60 * 60e3}});
+    if (bill) return await applyBill(env, origin, u, bill) && 'bill';
+    return 'wait';
+  }
   await saveSettings(env, u, {pending: p});
   const ask = await nextStep(env, origin, u, {});  // the first open question: name, share or category
-  return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [ask]}).then(() => true, err => (console.error(err), false));
+  return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [ask]}).then(() => 'asked', err => (console.error(err), false));
+}
+
+// ---------- Bill Splitter (billsplitter-th): the bill the user split for a payment ----------
+// With the private link from Bill Splitter's Me page (settings.bills), a bank alert whose name or share ป้าคีน would
+// ask about is matched to the bill made there for it: the same amount paid at the shop (to ฿1), made in the last
+// 3 hours and not matched before. The bill gives the entry its name and the user's own share, and the category comes
+// from the bill's name and items; one still unsure is asked about. Then the saved card is sent.
+const BILLS_ORIGIN = 'https://billsplitter-th.vercel.app';
+const billWait = env => Number(env.BILL_WAIT_MS) || 20 * 60e3;  // how long to wait for a bill before asking
+const billsFeed = (env, s) => typeof s.bills === 'string' && s.bills.startsWith(`${env.BILLS_ORIGIN || BILLS_ORIGIN}/api/feed/`) ? s.bills : null;
+async function findBill(env, u, amount) {
+  const s = settings(u), link = billsFeed(env, s);
+  if (!link) return null;
+  const {bills = []} = await (await call(`${link}?since=${Date.now() - 3 * 3600e3}`, {signal: AbortSignal.timeout(5000)})).json();
+  return bills.find(b => !(s.bills_used || []).includes(b.id) && Math.abs(b.paid / 100 - amount) <= 1) || null;
+}
+// Fill the pending alert's entry from its bill, then go on: its category if still unsure, else the saved card.
+async function applyBill(env, origin, u, bill) {
+  const p = settings(u).pending, id = p.ids[0], note = String(bill.title || '').trim().slice(0, 100), mine = Math.round(bill.mine) / 100;
+  const amount = mine > 0 && mine < p.amount ? mine : p.amount;  // the user's own share; never more than they paid
+  await q(env, `UPDATE entries SET amount = ?${note ? ', note = ?' : ''} WHERE id = ? AND user_id = ?`, amount, ...(note ? [note] : []), id, u.id).run();
+  if (note) await categoriseByName(env, u, id, note, (bill.items || []).slice(0, 15).join(', '));
+  await saveSettings(env, u, {bills_used: [...(settings(u).bills_used || []), bill.id].slice(-30)});
+  const msg = await nextStep(env, origin, u, {named: true, shared: true, amount});
+  return lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [msg]}).then(() => true, err => (console.error(err), false));
+}
+// On each scheduled run: the alert waiting for its bill gets it, or once the wait is over, the questions.
+async function checkBillWait(env, origin, u) {
+  const p = pendingOf(u);
+  if (!p?.wait) return;
+  const bill = await findBill(env, u, p.amount).catch(err => (console.error(err), null));
+  if (bill) return applyBill(env, origin, u, bill);
+  if (Date.now() < p.wait) return;
+  const ask = await nextStep(env, origin, u, {});
+  await lineApi(env, '/v2/bot/message/push', {to: u.id, messages: [ask]}).catch(console.error);
 }
 
 // Record one alert's text and ask about it in LINE if needed. Throws when the model fails.
@@ -1098,10 +1149,15 @@ async function notify(request, env, url) {
     await saveSettings(env, u, {alert_retry: [...(s.alert_retry || []), {text, at: Date.now()}].slice(-10)});
     return say('ตอนนี้ AI ไม่ว่างจ้ะ ป้าเก็บแจ้งเตือนนี้ไว้ จะลองจดให้อีกครั้งในไม่กี่นาทีนะ');
   }
+  if (asked === 'bill') {  // the bill changed the entry's name, amount and category: say it as it is now
+    const now = await q(env, 'SELECT e.note, e.amount, c.name AS category FROM entries e LEFT JOIN categories c ON c.id = e.category_id WHERE e.id = ? AND e.user_id = ?', saved.find(e => e.id).id, u.id).first();
+    if (now) Object.assign(saved.find(e => e.id), {...now, category: now.category ?? 'อื่นๆ'});
+  }
   const line = e => `${e.kind === 'expense' ? '-' : '+'}${money(s, e.amount)} ${e.note}`;
   // money received is only named ("เงินเข้า ฿500"), never recorded: just money out is
   return say(saved.map(e => e.received ? `เงินเข้า ${money(s, e.amount)}` : e.cancelled ? `ป้าลบรายการที่ยกเลิกแล้ว: ${line(e)}` : 'cancelled' in e ? `แจ้งยกเลิก ${money(s, e.amount)} แต่ไม่พบรายการเดิม`
-    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${asked ? ' · ป้าถามต่อใน LINE นะ' : ''}`).join('\n'));
+    : e.dup ? `รายการนี้จดไปแล้ว: ${line(e)}` : `ป้าจดแล้ว: ${line(e)} (${e.category})${{asked: ' · ป้าถามต่อใน LINE นะ', bill: ' · จากบิลใน Bill Splitter ดูใน LINE ได้เลย',
+      wait: ` · ป้ารอดูบิลใน Bill Splitter ${Math.max(1, Math.round(billWait(env) / 6e4))} นาที จะบอกเองก็พิมพ์ใน LINE ได้เลย`}[asked] || ''}`).join('\n'));
 }
 
 export default {
