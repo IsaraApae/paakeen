@@ -18,11 +18,15 @@ const MOCK = 8798, PORT = 8799, base = `http://127.0.0.1:${PORT}`, mockUrl = `ht
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let entries = [], geminiParts, geminiModel, geminiThinking, loadings = 0, geminiDown = false;
 const replies = [], pushes = [], menus = [], dropped = [];
+// Bill Splitter's private link for the test user, and the bills it gives
+const FEED = '/api/feed/' + 'b'.repeat(43);
+let feedBills = [];
 
 const mock = createServer(async (req, res) => {
   let body = '';
   for await (const chunk of req) body += chunk;
   const json = o => res.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify(o));
+  if (req.url.startsWith('/api/feed/')) return req.url.split('?')[0] === FEED ? json({bills: feedBills}) : res.writeHead(404).end();
   if (req.url.includes('/profile/')) return json({displayName: 'Dev'});
   if (req.url.endsWith('/richmenu')) { menus.push(JSON.parse(body)); return json({richMenuId: 'rm' + menus.length}); }
   if (req.method === 'DELETE' && req.url.includes('/richmenu/')) { dropped.push(req.url.split('/').pop()); return json({}); }
@@ -47,7 +51,8 @@ const mock = createServer(async (req, res) => {
   res.writeHead(404).end();
 }).listen(MOCK);
 
-const vars = {LINE_CHANNEL_SECRET: 'dev', LINE_CHANNEL_ACCESS_TOKEN: 'dev', GEMINI_API_KEY: 'dev', LINE_API: mockUrl, LINE_DATA_API: mockUrl, GEMINI_API: mockUrl, GEMINI_MODEL: 'busy-model,slow-model,ok-model', GEMINI_FAST_MODEL: 'fast-model'};
+const vars = {LINE_CHANNEL_SECRET: 'dev', LINE_CHANNEL_ACCESS_TOKEN: 'dev', GEMINI_API_KEY: 'dev', LINE_API: mockUrl, LINE_DATA_API: mockUrl, GEMINI_API: mockUrl, GEMINI_MODEL: 'busy-model,slow-model,ok-model', GEMINI_FAST_MODEL: 'fast-model',
+  BILLS_ORIGIN: mockUrl, BILL_WAIT_MS: '3000'};  // the wait for a bill, 20 minutes in real use
 const dev = spawn(process.execPath, [wrangler, 'dev', '--port', String(PORT), '--test-scheduled', '--persist-to', mkdtempSync(join(tmpdir(), 'paakeen-')),
   ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`])], {stdio: process.env.DEBUG ? 'inherit' : 'ignore'});
 
@@ -434,6 +439,53 @@ try {
   entries = [{kind: 'expense', amount: 250, category: 'อาหาร', note: 'ร้านข้าวมันไก่', cancel: true}];
   assert.equal((await hook2(link, {text: 'VOID 250.00 บาท ร้านข้าวมันไก่'}))[1], 'ป้าลบรายการที่ยกเลิกแล้ว: -฿250 ร้านข้าวมันไก่');
   assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ร้านข้าวมันไก่').length, 0);
+  // Bill Splitter: an alert whose name or share would be asked about is matched to the bill split for it
+  const pushedTo = (from, re) => pushes.slice(from).find(p => p.to === 'u1' && re.test(JSON.stringify(p)));
+  const until = async check => { for (let i = 0; i < 60 && !check(); i++) await sleep(100); return check(); };
+  const bill = (id, title, paid, mine, items) => ({id, title, paid, mine, items, savedAt: new Date().toISOString(), people: 3});
+  assert.equal(await api(t1, 'PUT', 'settings', {bills: 'https://example.com/not-a-feed'}), 400);
+  assert.deepEqual(await api(t1, 'PUT', 'settings', {bills: mockUrl + FEED}), {});
+  // already there: its name and the user's share straight away, the category from them, then the saved card
+  feedBills = [bill('b1', 'หมูกระทะ', 93382, 23346, ['หมูสามชั้น', 'ผักรวม'])];
+  entries = [{kind: 'expense', amount: 933.82, category: 'อาหาร', note: '', party: 'unknown'}];
+  let from = pushes.length;
+  assert.equal((await hook2(link, {text: 'ชำระเงิน 933.82 บาท'}))[1], 'ป้าจดแล้ว: -฿233.46 หมูกระทะ (อาหาร) · จากบิลใน Bill Splitter ดูใน LINE ได้เลย');
+  assert.ok(pushedTo(from, /จดรายจ่ายแล้ว.*หมูกระทะ/));
+  assert.equal(pushes.length, from + 1);  // just the saved card, no questions
+  assert.equal((await api(t1, 'GET', 'state')).settings.pending, null);
+  // not there yet: no question while it waits; the scheduled run finds the bill when it comes
+  feedBills = [];
+  entries = [{kind: 'expense', amount: 640, category: 'อาหาร', note: 'QR PAYMENT 1234', party: 'unclear'}];
+  from = pushes.length;
+  assert.match((await hook2(link, {text: 'จ่าย 640.00 บาท QR PAYMENT 1234'}))[1], /ป้ารอดูบิลใน Bill Splitter .*พิมพ์ใน LINE ได้เลย/);
+  assert.equal(pushes.length, from);
+  feedBills = [bill('b2', 'Shabushi', 64000, 32000, ['Buffet'])];
+  await fetch(base + '/__scheduled');
+  assert.ok(await until(() => pushedTo(from, /จดรายจ่ายแล้ว.*Shabushi/)));
+  assert.deepEqual((({note, amount}) => ({note, amount}))((await api(t1, 'GET', 'state')).entries.find(e => e.note === 'Shabushi')), {note: 'Shabushi', amount: 320});
+  // a bill is matched to one payment only
+  entries = [{kind: 'expense', amount: 640, category: 'อาหาร', note: 'QR PAYMENT 5678', party: 'unclear'}];
+  assert.match((await hook2(link, {text: 'จ่าย 640.00 บาท QR PAYMENT 5678'}))[1], /ป้ารอดูบิล/);
+  // while it waits the user can still answer by typing; a new entry isn't taken for the answer
+  feedBills = [];
+  entries = [{kind: 'expense', amount: 60, category: 'เครื่องดื่ม', note: 'ชาเขียว'}];
+  await say('ชาเขียว 60');
+  assert.equal((await api(t1, 'GET', 'state')).entries.filter(e => e.note === 'ชาเขียว' && e.amount === 60).length, 1);
+  entries = [{kind: 'expense', amount: 1, category: 'อาหาร', note: 'ข้าวผัดปู'}];
+  assert.match(JSON.stringify(await say('ข้าวผัดปู')), /เป็นส่วนของหลานเท่าไหร่/);  // the name taken; on to the share
+  await hook({type: 'postback', postback: {data: `share:${(await api(t1, 'GET', 'state')).entries.find(e => e.note === 'ข้าวผัดปู').id}:2`}});
+  assert.equal((await api(t1, 'GET', 'state')).entries.find(e => e.note === 'ข้าวผัดปู').amount, 320);
+  // the wait over with no bill: the questions, as without Bill Splitter
+  entries = [{kind: 'expense', amount: 88, category: 'อาหาร', note: '', party: 'unknown'}];
+  from = pushes.length;
+  await hook2(link, {text: 'ชำระเงิน 88.00 บาท'});
+  await sleep(3200);
+  await fetch(base + '/__scheduled');
+  const late = await until(() => pushedTo(from, /ค่าอะไรจ๊ะ/));
+  assert.ok(late);
+  await hook({type: 'postback', postback: {data: late.messages[0].quickReply.items.at(-1).action.data}});  // ข้าม
+  await api(t1, 'PUT', 'settings', {bills: ''});
+
   await api(t1, 'POST', 'notify-key');  // a new link turns the old one off
   assert.equal((await hook2(link, {text: alert}))[0], 401);
 

@@ -458,6 +458,9 @@ const EN = {
   'ลิงก์สำหรับคำสั่งลัด': 'Shortcut link', 'สร้างใหม่': 'Make new',
   'คำสั่งลัดของ iPhone ส่งแจ้งเตือนจากธนาคารใน LINE มาให้ป้าจดเอง ข้อความที่ไม่มีจำนวนเงินจะไม่ถูกส่งต่อ สร้างลิงก์ใหม่เมื่อไหร่ ลิงก์เก่าจะใช้ไม่ได้':
     "An iPhone Shortcut sends your bank's LINE alerts here to be recorded. Text without an amount of money isn't passed on. Making a new link stops the old one.",
+  'เชื่อม Bill Splitter แล้ว ถ้าป้าไม่แน่ใจชื่อร้านหรือส่วนของหลาน ป้าจะรอดูบิลที่ยอดตรงกัน 20 นาทีก่อนถาม ระหว่างนั้นพิมพ์บอกเองก็ได้': 'With Bill Splitter connected, when the shop or your share is unclear, ป้าคีน waits up to 20 minutes for a bill with the same amount before asking. You can still type it yourself meanwhile.',
+  'เชื่อมแล้ว': 'Connected', 'ยังไม่เชื่อม': 'Not connected', 'ลิงก์จาก Bill Splitter': 'Link from Bill Splitter',
+  'ใน Bill Splitter เปิด Me แล้วกด Copy link for ป้าคีน มาวางที่นี่': 'In Bill Splitter, open Me and tap Copy link for ป้าคีน, then paste it here.',
   'สรุป': 'Summary', 'วิเคราะห์': 'Analysis', 'หมวดหมู่': 'Categories', 'รายการ': 'Entries', 'ตั้งค่า': 'Settings',
   'เหลือเก็บ': 'Left to save', 'รายจ่าย': 'Expense', 'รายรับ': 'Income', 'รายจ่ายตามหมวด': 'Expense by category', 'ยังไม่มีรายจ่ายในเดือนนี้': 'No spending this month yet', 'ยังไม่มีรายรับในเดือนนี้': 'No income this month yet',
   'ย่อ': 'Show less', 'ดูทุกหมวด': 'Show all categories', 'รายการล่าสุด': 'Recent entries', 'ดูทั้งหมด': 'See all',
@@ -746,6 +749,18 @@ async function copyNotify() {
   catch { ask('ลิงก์สำหรับคำสั่งลัด', [{k: 'link', label: 'ลิงก์', value: notifyLink()}], {ok: 'ปิด'}); }  // no clipboard: show it to copy by hand
 }
 const notifyHelp = () => go('setup');
+// Bill Splitter's private link (its Me page → ป้าคีน): an alert ป้าคีน is unsure of is matched to the bill split there
+async function linkBills() {
+  const had = S.settings.bills || '';
+  const r = await ask('Bill Splitter', [{k: 'link', label: 'ลิงก์จาก Bill Splitter', value: had}], {del: !!had, hint: 'ใน Bill Splitter เปิด Me แล้วกด Copy link for ป้าคีน มาวางที่นี่'});
+  if (!r) return;
+  if (r === 'del') return setS({bills: ''});
+  const link = r.link.trim();
+  if (link === had) return;
+  if (!/^https?:\/\/[\w.:-]+\/api\/feed\/[\w-]{43}$/.test(link)) return toast(L('ลิงก์นี้ไม่ใช่ลิงก์จาก Bill Splitter', "That isn't a link from Bill Splitter"));
+  await setS({bills: link});
+  toast(L('เชื่อม Bill Splitter แล้ว', 'Bill Splitter connected'));
+}
 async function setRemind() { const v = await pickTime(S.settings.remind); if (v !== null) setS({remind: v}); }
 // One dialog for every form: a full sheet when it has an amount or choices, a compact alert otherwise.
 // Resolves to the field values, 'del', or null.
@@ -1341,9 +1356,11 @@ const VIEWS = {
     <div class="group">
       ${s.notify_key ? `<button class="row tap" onclick="copyNotify()"><span class="grow">คัดลอกลิงก์สำหรับคำสั่งลัด</span>${I.share}</button>` : ''}
       <button class="row tap" onclick="notifyHelp()"><span class="grow">วิธีตั้งค่า</span>${CHEV}</button>
+      <button class="row tap" onclick="linkBills()"><span class="grow">Bill Splitter</span><span class="muted">${s.bills ? 'เชื่อมแล้ว' : 'ยังไม่เชื่อม'}</span>${CHEV}</button>
       <button class="row tap link" onclick="newNotify()">${s.notify_key ? 'สร้างลิงก์ใหม่' : 'เปิดใช้'}</button>
     </div>
     <p class="foot">คำสั่งลัดของ iPhone ส่งแจ้งเตือนจากธนาคารใน LINE มาให้ป้าจดเอง ข้อความที่ไม่มีจำนวนเงินจะไม่ถูกส่งต่อ สร้างลิงก์ใหม่เมื่อไหร่ ลิงก์เก่าจะใช้ไม่ได้</p>
+    <p class="foot">เชื่อม Bill Splitter แล้ว ถ้าป้าไม่แน่ใจชื่อร้านหรือส่วนของหลาน ป้าจะรอดูบิลที่ยอดตรงกัน 20 นาทีก่อนถาม ระหว่างนั้นพิมพ์บอกเองก็ได้</p>
 
     <div class="sect"><span>การแจ้งเตือน</span></div>
     <div class="group"><button class="row tap" onclick="setRemind()"><span class="grow">เตือนจดประจำวัน</span><span class="muted">${s.remind || L('ปิด', 'Off')}</span>${CHEV}</button></div>
