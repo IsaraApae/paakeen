@@ -331,6 +331,14 @@ dialog .group { background: var(--surface); }
 .mock svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; vertical-align: middle; }
 .mock .dim { color: #98989F; }
 .mock .blue { color: #3E9BFF; }
+/* real screenshots on the setup page (they show no private link), each in the page's own theme */
+.shot { display: grid; gap: 6px; }
+.shot .cap { font-size: 12px; color: var(--label2); padding: 0 4px; }
+.shot img { width: 100%; border-radius: 18px; border: .5px solid var(--sep); }
+.shot .dark { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme=light]) .shot .light { display: none; } :root:not([data-theme=light]) .shot .dark { display: block; } }
+:root[data-theme=dark] .shot .light { display: none; }
+:root[data-theme=dark] .shot .dark { display: block; }
 .act { background: #2C2C2E; border-radius: 20px; overflow: hidden; }
 .act .hd { display: flex; align-items: flex-start; gap: 8px; padding: 11px 12px 11px 14px; }
 .act .hd .t { flex: 1; min-width: 0; line-height: 1.95; }
@@ -1196,6 +1204,18 @@ const VIEWS = {
         <li>Nothing should pop up: nothing was recorded, so ป้าคีน sends back an empty answer and the If stays quiet.</li></ol>
       <p style="margin:0">After your next payment alert in LINE, you should see this, and the payment appears in รายการ:</p>
       ${banner('ป้าจดแล้ว: -฿120 ร้านข้าวมันไก่ (อาหาร)')}</div>
+
+    <div class="group step"><h2><i>5</i>Connect Bill Splitter (optional)</h2>
+      <p style="margin:0">If you split bills in <b>Bill Splitter</b>, ป้าคีน can take the bill's name and your own share from it instead of asking. When an alert's shop name is unclear, has no name, or is over ฿500, it looks for a bill there with the same amount, and waits up to 20 minutes for one. You can still type the answer in LINE meanwhile.</p>
+      <ol><li>In Bill Splitter, open <b>Me</b> and tap <b>Copy link for ป้าคีน</b>.</li>
+        <li>Here in ป้าคีน, open <b>ตั้งค่า</b>, tap <b>Bill Splitter</b> and paste it. It then says <b>เชื่อมแล้ว</b>.</li></ol>
+      <div class="shot"><span class="cap">1. Bill Splitter → Me</span>
+        <img class="light" src="/setup/bills-light.jpg?v=1" alt="Bill Splitter's Me page: the ป้าคีน (LINE) card with Copy link for ป้าคีน" loading="lazy">
+        <img class="dark" src="/setup/bills-dark.jpg?v=1" alt="" loading="lazy"></div>
+      <div class="shot"><span class="cap">2. ป้าคีน → ตั้งค่า</span>
+        <img class="light" src="/setup/link-light.jpg?v=1" alt="ป้าคีน's ตั้งค่า: Bill Splitter, เชื่อมแล้ว" loading="lazy">
+        <img class="dark" src="/setup/link-dark.jpg?v=1" alt="" loading="lazy"></div>
+      <p class="sub" style="margin:0">To stop, tap <b>Disconnect</b> in Bill Splitter, or <b>ลบ</b> on the Bill Splitter row here.</p></div>
 
     <div class="group step"><h2><i>?</i>If it doesn't work</h2>
       <ul><li><b>"ลิงก์ไม่ถูกต้อง"</b>: copy your link again (step 1) and paste it into Get Contents of URL.</li>
